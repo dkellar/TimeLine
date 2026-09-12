@@ -1,0 +1,638 @@
+<title>Runway Arrows</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@500;700;800&display=swap">
+<style>
+  :root {
+    --ground: #F3ECDC;
+    --rule: #E1D6C0;
+    --text: #4A3320;
+    --muted: #9A8468;
+    --line: #6F4A2E;
+    --accent: #D98A3A;
+    --life: #4DA3F5;
+    --life-empty: #D9CEB9;
+    --overlay: rgba(243, 236, 220, 0.9);
+    --btn: #6F4A2E;
+    --btn-text: #F8F2E6;
+    --display: "Fredoka", "Arial Rounded MT Bold", "Helvetica Neue", sans-serif;
+    --body: "Nunito", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #201B16;
+      --rule: #34302A;
+      --text: #F0E4D0;
+      --muted: #9C8C74;
+      --line: #E7CBA4;
+      --accent: #F0A24E;
+      --life: #5FAEF8;
+      --life-empty: #3E372E;
+      --overlay: rgba(32, 27, 22, 0.9);
+      --btn: #E7CBA4;
+      --btn-text: #201B16;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #201B16;
+    --rule: #34302A;
+    --text: #F0E4D0;
+    --muted: #9C8C74;
+    --line: #E7CBA4;
+    --accent: #F0A24E;
+    --life: #5FAEF8;
+    --life-empty: #3E372E;
+    --overlay: rgba(32, 27, 22, 0.9);
+    --btn: #E7CBA4;
+    --btn-text: #201B16;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    width: min(100%, 720px);
+    margin: 0 auto;
+    padding: 0 16px 32px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: 18px 0 14px;
+    border-bottom: 2px solid var(--rule);
+  }
+  .topbar h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(22px, 5vw, 30px);
+    color: var(--accent);
+    margin: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .topbar .right { display: flex; justify-content: flex-end; gap: 8px; }
+  .icon-btn {
+    width: 42px; height: 42px;
+    border-radius: 12px;
+    border: 2px solid var(--rule);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    display: grid; place-items: center;
+    transition: transform 120ms ease, border-color 120ms ease;
+  }
+  .icon-btn:hover { transform: translateY(-1px); border-color: var(--muted); }
+  .icon-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0 6px;
+  }
+  .lives { display: flex; gap: 10px; }
+  .life { width: 38px; height: 38px; fill: none; stroke: var(--life); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: stroke 240ms ease, transform 240ms ease, opacity 240ms ease; }
+  .life .string { stroke-width: 1.4; }
+  .life.empty { stroke: var(--life-empty); transform: scale(0.85) rotate(-12deg); opacity: 0.8; }
+  .status .count {
+    font-weight: 800;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .stage {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    position: relative;
+    padding: 12px 0;
+    min-height: 320px;
+  }
+  svg.board {
+    width: 100%;
+    height: auto;
+    max-height: 72vh;
+    display: block;
+    touch-action: manipulation;
+  }
+  .snake { cursor: pointer; }
+  .snake .hit { fill: none; stroke: transparent; stroke-width: 5.5; pointer-events: stroke; stroke-linecap: round; stroke-linejoin: round; }
+  .snake .line, .snake .head {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    transition: stroke 160ms ease;
+  }
+  .snake:hover .line, .snake:hover .head { stroke: var(--accent); }
+  .snake.hint .line, .snake.hint .head { stroke: var(--accent); animation: blink 500ms ease 3; }
+  .snake.hit-shake { animation: jiggle 260ms ease; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @keyframes jiggle {
+    0% { transform: translate(0, 0); }
+    35% { transform: translate(var(--jx), var(--jy)); }
+    100% { transform: translate(0, 0); }
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 240ms ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .card {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    text-align: center; padding: 24px;
+  }
+  .card h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(22px, 6vw, 32px);
+    margin: 0;
+    color: var(--accent);
+    text-wrap: balance;
+  }
+  .card p { margin: 0; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .btn {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 17px;
+    padding: 12px 26px;
+    border-radius: 999px;
+    border: 2px solid var(--btn);
+    background: var(--btn);
+    color: var(--btn-text);
+    cursor: pointer;
+    transition: transform 120ms ease;
+  }
+  .btn.quiet { background: transparent; color: var(--text); border-color: var(--rule); font-family: var(--body); font-weight: 800; font-size: 14px; padding: 9px 18px; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+  .footer { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snake.hint .line, .snake.hint .head, .snake.hit-shake { animation-duration: 100ms; }
+    .overlay { transition: none; }
+  }
+</style>
+
+<div class="app">
+  <div class="topbar">
+    <div></div>
+    <h1 id="title">Level 1</h1>
+    <div class="right">
+      <button class="icon-btn" id="hintBtn" title="Hint" aria-label="Hint">
+        <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="lives" id="lives" aria-label="Bows remaining"></div>
+    <div class="count"><span id="left">0</span> left</div>
+  </div>
+
+  <div class="stage">
+    <svg class="board" id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="overlay" id="overlay">
+      <div class="card">
+        <h2 id="cardTitle">Level cleared</h2>
+        <p id="cardText"></p>
+        <button class="btn" id="cardBtn">Next level</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn quiet" id="retryBtn">Restart level</button>
+    <button class="btn quiet" id="newBtn">New puzzle</button>
+    <button class="btn quiet" id="skipBtn">Skip level</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left as [dr, dc]
+  const U = 10;          // svg units per cell
+  const PAD = 1;         // cells of breathing room around the grid
+  const SPEED = 18;      // cells per second while sliding
+  const MAX_DROPS = 3;
+
+  const $ = (id) => document.getElementById(id);
+  const board = $("board"), overlay = $("overlay");
+  const rand = (k) => Math.floor(Math.random() * k);
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const key = (r, c) => r * 1000 + c;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let level = 1;
+  try { level = Math.max(1, parseInt(localStorage.getItem("runway-level"), 10) || 1); } catch (e) {}
+
+  // ---------- Generation ----------
+
+  function levelParams(L) {
+    const W = Math.min(22, 12 + Math.floor((L - 1) / 2));
+    const H = Math.min(28, Math.round(W * 1.25));
+    return { W, H, region: Math.round(W * H * 0.78), maxLen: Math.min(7, 3 + Math.floor((L - 1) / 4)) };
+  }
+
+  // An organic blob of cells the puzzle will live in, grown from the centre.
+  function makeRegion(W, H, target) {
+    const inR = Array.from({ length: H }, () => Array(W).fill(false));
+    const list = [[Math.floor(H / 2), Math.floor(W / 2)]];
+    inR[list[0][0]][list[0][1]] = true;
+    let guard = 0;
+    while (list.length < target && guard++ < 100000) {
+      // Mostly extend from recently added cells so the blob grows lobes instead of a disc.
+      const src = Math.random() < 0.6 ? list[list.length - 1 - rand(Math.min(list.length, 6))] : list[rand(list.length)];
+      const opts = DIRS.map(([dr, dc]) => [src[0] + dr, src[1] + dc])
+        .filter(([r, c]) => r >= 0 && r < H && c >= 0 && c < W && !inR[r][c]);
+      if (!opts.length) continue;
+      const cell = opts[rand(opts.length)];
+      inR[cell[0]][cell[1]] = true;
+      list.push(cell);
+    }
+    // Absorb any pocket the blob grew around: outside cells not reachable from the border.
+    const seen = Array.from({ length: H }, () => Array(W).fill(false));
+    const stack = [];
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if ((r === 0 || c === 0 || r === H - 1 || c === W - 1) && !inR[r][c]) { seen[r][c] = true; stack.push([r, c]); }
+    while (stack.length) {
+      const [r, c] = stack.pop();
+      for (const [dr, dc] of DIRS) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < H && nc >= 0 && nc < W && !inR[nr][nc] && !seen[nr][nc]) { seen[nr][nc] = true; stack.push([nr, nc]); }
+      }
+    }
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (!inR[r][c] && !seen[r][c]) inR[r][c] = true;
+    return inR;
+  }
+
+  function generate(L) {
+    // Several draws; keep the one with the fewest paths free at the start, then fewest trains.
+    let best = null;
+    for (let t = 0; t < 4; t++) {
+      const p = generateOnce(L);
+      if (!best || p.open + p.trains < best.open + best.trains) best = p;
+    }
+    return best;
+  }
+
+  // Two stages. First the blob is tiled completely with paths, so there are never gaps.
+  // Then the tiling is "peeled" in play order: at every step we pick a path, a head end
+  // and a direction whose straight run to the board edge is clear of everything still on
+  // the board. The reverse of that order is a valid solution, so the puzzle is solvable by
+  // construction. Choosing, at each step, a run that was blocked by the path removed just
+  // before it keeps the number of free paths per turn close to one.
+  function generateOnce(L) {
+    const { W, H, region, maxLen } = levelParams(L);
+    const inR = makeRegion(W, H, region);
+    const inb = (r, c) => r >= 0 && r < H && c >= 0 && c < W;
+    const occ = Array.from({ length: H }, () => Array(W).fill(-1));
+    const paths = []; // { cells } in walk order
+
+    // ---- Stage 1: tile the blob with random walks.
+    const cells = [];
+    for (let r = 0; r < H; r++) for (let c = 0; c < W; c++) if (inR[r][c]) cells.push([r, c]);
+    for (const [r, c] of shuffle(cells)) {
+      if (occ[r][c] >= 0) continue;
+      const id = paths.length, body = [[r, c]];
+      occ[r][c] = id;
+      const target = 2 + rand(maxLen - 1);
+      let cur = [r, c], lastDir = -1;
+      while (body.length < target) {
+        const opts = [];
+        for (let d = 0; d < 4; d++) {
+          const nr = cur[0] + DIRS[d][0], nc = cur[1] + DIRS[d][1];
+          if (inb(nr, nc) && inR[nr][nc] && occ[nr][nc] < 0) opts.push(d);
+        }
+        if (!opts.length) break;
+        const nd = (lastDir >= 0 && opts.includes(lastDir) && Math.random() < 0.5) ? lastDir : opts[rand(opts.length)];
+        cur = [cur[0] + DIRS[nd][0], cur[1] + DIRS[nd][1]];
+        occ[cur[0]][cur[1]] = id; body.push(cur); lastDir = nd;
+      }
+      paths.push({ cells: body });
+    }
+    // Lone cells join a neighbouring path's end where they can.
+    for (const p of paths) {
+      if (p.cells.length !== 1) continue;
+      const [r, c] = p.cells[0];
+      for (const [dr, dc] of shuffle(DIRS.slice())) {
+        const nr = r + dr, nc = c + dc;
+        if (!inb(nr, nc) || occ[nr][nc] < 0 || occ[nr][nc] === occ[r][c]) continue;
+        const q = paths[occ[nr][nc]];
+        if (q.cells.length >= maxLen + 2) continue;
+        const [fr, fc] = q.cells[0], [lr, lc] = q.cells[q.cells.length - 1];
+        if (fr === nr && fc === nc) q.cells.unshift([r, c]);
+        else if (lr === nr && lc === nc) q.cells.push([r, c]);
+        else continue;
+        occ[r][c] = occ[nr][nc]; p.cells = [];
+        break;
+      }
+    }
+
+    // ---- Stage 2: peel in play order.
+    const remaining = new Set();
+    paths.forEach((p, i) => { if (p.cells.length) remaining.add(i); });
+    const removedAt = Array.from({ length: H }, () => Array(W).fill(-1)); // play step a cell was cleared
+    const headDir = Array.from({ length: H }, () => Array(W).fill(-1));   // direction of the head that left from a cell
+    const rayOf = (r, c, d) => {
+      const out = [];
+      for (let rr = r + DIRS[d][0], cc = c + DIRS[d][1]; inb(rr, cc); rr += DIRS[d][0], cc += DIRS[d][1]) out.push([rr, cc]);
+      return out;
+    };
+    // A run is usable when nothing still on the board (its own body included) lies on it.
+    // `b` is the step it became clear (-1 = clear from the start); `train` means the path
+    // that cleared it left from the very next cell, pointing the same way.
+    const grade = (r, c, d) => {
+      let b = -1, train = false, first = true;
+      for (const [a, e] of rayOf(r, c, d)) {
+        if (occ[a][e] >= 0) return null;
+        if (removedAt[a][e] > b) b = removedAt[a][e];
+        if (first && removedAt[a][e] >= 0) { train = headDir[a][e] === d; first = false; }
+      }
+      return { b, train };
+    };
+    const ends = (p) => [[p.cells[0], 0], [p.cells[p.cells.length - 1], 1]];
+    const result = [];
+    for (let t = 0; remaining.size; t++) {
+      const cands = [];
+      for (const id of remaining) for (const [[r, c], end] of ends(paths[id])) for (let d = 0; d < 4; d++) {
+        const g = grade(r, c, d);
+        if (g) cands.push({ id, end, d, r, c, b: g.b, train: g.train });
+      }
+      if (!cands.length) {
+        // Everything left is boxed in. Some cell on the outside of what remains has a clear
+        // run; cutting its path there turns it into an end, so the peel can continue.
+        let done = false;
+        for (const id of remaining) {
+          const p = paths[id];
+          for (let i = 1; i < p.cells.length - 1 && !done; i++) {
+            const [r, c] = p.cells[i];
+            if (![0, 1, 2, 3].some((d) => rayOf(r, c, d).every(([a, e]) => occ[a][e] < 0))) continue;
+            const tail = p.cells.splice(i + 1);
+            const nid = paths.length;
+            paths.push({ cells: tail }); remaining.add(nid);
+            for (const [a, e] of tail) occ[a][e] = nid;
+            done = true;
+          }
+          if (done) break;
+        }
+        if (!done) throw new Error("peel stuck");
+        t--; continue;
+      }
+      // Most recently unblocked first (a train costs two steps of recency), then longer paths.
+      cands.sort((x, y) => (y.b - y.train * 2 - (x.b - x.train * 2)) || (x.train - y.train) || (paths[y.id].cells.length - paths[x.id].cells.length));
+      // Among the best few, prefer the one whose removal frees exactly one new run.
+      const top = cands.slice(0, 6);
+      for (const cand of top) {
+        const p = paths[cand.id];
+        for (const [a, e] of p.cells) occ[a][e] = -1;
+        let opened = 0;
+        for (const id of remaining) {
+          if (id === cand.id) continue;
+          let any = false;
+          for (const [[r, c]] of ends(paths[id])) for (let d = 0; d < 4 && !any; d++) {
+            const ray = rayOf(r, c, d);
+            if (ray.every(([a, e]) => occ[a][e] < 0) && ray.some(([a, e]) => p.cells.some(([x, y]) => x === a && y === e))) any = true;
+          }
+          if (any) opened++;
+        }
+        for (const [a, e] of p.cells) occ[a][e] = cand.id;
+        cand.opened = opened;
+      }
+      top.sort((x, y) => (y.b - y.train * 2 - (x.b - x.train * 2)) || (x.train - y.train) || ((x.opened === 0) - (y.opened === 0)) || (x.opened - y.opened));
+      const pick = top[0];
+      const p = paths[pick.id];
+      const body = pick.end === 1 ? p.cells : p.cells.slice().reverse(); // tail → head
+      for (const [a, e] of body) { occ[a][e] = -1; removedAt[a][e] = t; }
+      headDir[pick.r][pick.c] = pick.d;
+      remaining.delete(pick.id);
+      result.push({ cells: body, d: pick.d, b: pick.b, train: pick.train });
+    }
+
+    // Ids run in placement order (first placed = last to leave), matching play-time scans.
+    const snakes = result.reverse().map((s, id) => ({ id, cells: s.cells, d: s.d }));
+    return { W, H, gaps: 0, open: result.filter((s) => s.b < 0).length, trains: result.filter((s) => s.train).length, snakes };
+  }
+
+  // ---------- Game state ----------
+
+  let puzzle = null;   // { W, H, snakes }
+  let occ = [];        // cell → snake id or -1
+  let alive = [];      // per snake
+  let els = [];        // per snake <g>
+  let drops = MAX_DROPS, remaining = 0, over = false;
+  const animating = new Set();
+
+  function setup(p) {
+    puzzle = p;
+    occ = Array.from({ length: p.H }, () => Array(p.W).fill(-1));
+    alive = p.snakes.map(() => true);
+    for (const s of p.snakes) for (const [r, c] of s.cells) occ[r][c] = s.id;
+    drops = MAX_DROPS; remaining = p.snakes.length; over = false;
+    animating.clear();
+    overlay.classList.remove("show");
+    render();
+    updateHud();
+  }
+
+  function startLevel() { setup(generate(level)); try { localStorage.setItem("runway-level", String(level)); } catch (e) {} }
+  function restartLevel() { setup({ W: puzzle.W, H: puzzle.H, snakes: puzzle.snakes.map((s) => ({ ...s })) }); }
+
+  const cx = (c) => (c + PAD + 0.5) * U, cy = (r) => (r + PAD + 0.5) * U;
+  const toPt = ([r, c]) => [cx(c), cy(r)];
+
+  function render() {
+    const { W, H } = puzzle;
+    board.setAttribute("viewBox", `0 0 ${(W + 2 * PAD) * U} ${(H + 2 * PAD) * U}`);
+    board.innerHTML = "";
+    els = [];
+    for (const s of puzzle.snakes) {
+      const g = document.createElementNS(board.namespaceURI, "g");
+      g.classList.add("snake");
+      g.setAttribute("role", "button");
+      g.setAttribute("tabindex", "0");
+      g.setAttribute("aria-label", `${["Up", "Right", "Down", "Left"][s.d]} arrow, ${s.cells.length} long`);
+      for (const cls of ["hit", "line", "head"]) {
+        const p = document.createElementNS(board.namespaceURI, "path");
+        p.setAttribute("class", cls);
+        g.appendChild(p);
+      }
+      drawSnake(g, s.cells.map(toPt), s.d);
+      g.addEventListener("click", () => tap(s.id));
+      g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tap(s.id); } });
+      board.appendChild(g);
+      els[s.id] = g;
+    }
+  }
+
+  // pts run tail → head in svg units; the shaft extends past the head centre to a chevron tip.
+  function drawSnake(g, pts, d) {
+    const [dr, dc] = DIRS[d];
+    const head = pts[pts.length - 1];
+    const tip = [head[0] + dc * 0.34 * U, head[1] + dr * 0.34 * U];
+    const shaft = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(2) + " " + p[1].toFixed(2)).join("") + `L${tip[0].toFixed(2)} ${tip[1].toFixed(2)}`;
+    const back = 0.19 * U, side = 0.17 * U;
+    const a = [tip[0] - dc * back - dr * side, tip[1] - dr * back + dc * side];
+    const b = [tip[0] - dc * back + dr * side, tip[1] - dr * back - dc * side];
+    const chevron = `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${tip[0].toFixed(2)} ${tip[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
+    g.querySelector(".hit").setAttribute("d", shaft);
+    g.querySelector(".line").setAttribute("d", shaft);
+    g.querySelector(".head").setAttribute("d", chevron);
+  }
+
+  function updateHud() {
+    $("title").textContent = "Level " + level;
+    $("left").textContent = remaining;
+    const wrap = $("lives");
+    wrap.innerHTML = "";
+    for (let i = 0; i < MAX_DROPS; i++) {
+      const svg = document.createElementNS(board.namespaceURI, "svg");
+      svg.setAttribute("viewBox", "0 0 32 32");
+      svg.setAttribute("class", "life" + (i < drops ? "" : " empty"));
+      // A strung bow with an arrow nocked and ready.
+      svg.innerHTML = '<path d="M9 4C21 9 21 23 9 28"/><path class="string" d="M9 4L9 28"/><path d="M5 16H27"/><path d="M22 11l5 5-5 5"/><path d="M5 16l3-3M5 16l3 3"/>';
+      wrap.appendChild(svg);
+    }
+  }
+
+  // Free cells in front of the head, and whether the run reaches the edge.
+  function scan(s) {
+    const [dr, dc] = DIRS[s.d];
+    let [r, c] = s.cells[s.cells.length - 1];
+    let free = 0;
+    for (r += dr, c += dc; r >= 0 && r < puzzle.H && c >= 0 && c < puzzle.W; r += dr, c += dc) {
+      if (occ[r][c] >= 0 && alive[occ[r][c]]) return { clear: false, free, blocker: occ[r][c] };
+      free++;
+    }
+    return { clear: true, free, blocker: -1 };
+  }
+
+  // The track a path slides along: its own cells, the run ahead, then off the board.
+  function trackOf(s) {
+    const [dr, dc] = DIRS[s.d];
+    const pts = s.cells.map(toPt);
+    let [r, c] = s.cells[s.cells.length - 1];
+    for (let i = 0; i < puzzle.W + puzzle.H + s.cells.length + PAD + 2; i++) { r += dr; c += dc; pts.push(toPt([r, c])); }
+    return pts;
+  }
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  function pointAt(track, p) {
+    const i = Math.min(track.length - 2, Math.max(0, Math.floor(p)));
+    return lerp(track[i], track[i + 1], p - i);
+  }
+  function windowPts(track, offset, len) {
+    const a = offset, b = offset + len - 1;
+    const pts = [pointAt(track, a)];
+    for (let i = Math.ceil(a); i <= Math.floor(b); i++) if (i > a && i < b) pts.push(track[i]);
+    pts.push(pointAt(track, b));
+    return pts;
+  }
+
+  // Slide the path's window along its track from `from` to `to` cells, then call done.
+  function slide(s, track, from, to, ms, ease, onFrame, done) {
+    const g = els[s.id], t0 = performance.now(), dur = reduced ? Math.min(ms, 80) : ms;
+    const frame = (now) => {
+      const t = Math.min(1, (now - t0) / dur);
+      const off = from + (to - from) * ease(t);
+      drawSnake(g, windowPts(track, off, s.cells.length), s.d);
+      if (onFrame) onFrame(off);
+      if (t < 1) requestAnimationFrame(frame); else done();
+    };
+    requestAnimationFrame(frame);
+  }
+  const easeIn = (t) => t * t, easeOut = (t) => 1 - (1 - t) * (1 - t), linear = (t) => t;
+
+  function tap(id) {
+    const s = puzzle.snakes[id];
+    if (over || !alive[id] || animating.has(id)) return;
+    const g = els[id];
+    const { clear, free, blocker } = scan(s);
+    const track = trackOf(s);
+    animating.add(id);
+
+    if (clear) {
+      // Cells are freed immediately so other paths can use the space while this one departs.
+      alive[id] = false;
+      for (const [r, c] of s.cells) occ[r][c] = -1;
+      remaining--;
+      updateHud();
+      g.style.pointerEvents = "none";
+      const exitAt = free + 1;                       // head has left the grid
+      const end = exitAt + s.cells.length + PAD;     // tail has left too
+      slide(s, track, 0, end, (end / SPEED) * 1000, linear,
+        (off) => { g.style.opacity = off <= exitAt ? 1 : Math.max(0, 1 - (off - exitAt) / (end - exitAt)); },
+        () => { g.remove(); animating.delete(id); if (remaining === 0) finish(true); });
+    } else {
+      // Run into the blocker, knock it, then slide back home.
+      drops--;
+      updateHud();
+      const reach = free + 0.35;
+      slide(s, track, 0, reach, Math.max(110, (reach / SPEED) * 1000), easeIn, null, () => {
+        const b = els[blocker];
+        if (b) {
+          b.style.setProperty("--jx", DIRS[s.d][1] * 1.4 + "px");
+          b.style.setProperty("--jy", DIRS[s.d][0] * 1.4 + "px");
+          b.classList.remove("hit-shake"); void b.getBBox(); b.classList.add("hit-shake");
+        }
+        slide(s, track, reach, 0, 260, easeOut, null, () => {
+          animating.delete(id);
+          if (drops === 0) finish(false);
+        });
+      });
+    }
+  }
+
+  function finish(won) {
+    over = true;
+    $("cardTitle").textContent = won ? `Level ${level} cleared` : "Out of bows";
+    $("cardText").textContent = won
+      ? (drops === MAX_DROPS ? "Not a single bump." : `${MAX_DROPS - drops} ${MAX_DROPS - drops === 1 ? "bump" : "bumps"} along the way.`)
+      : `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
+    $("cardBtn").textContent = won ? "Next level" : "Try again";
+    $("cardBtn").onclick = won ? () => { level++; startLevel(); } : restartLevel;
+    overlay.classList.add("show");
+    $("cardBtn").focus();
+  }
+
+  function hint() {
+    if (over) return;
+    const clear = puzzle.snakes.filter((s) => alive[s.id] && !animating.has(s.id) && scan(s).clear);
+    if (!clear.length) return;
+    const g = els[clear[rand(clear.length)].id];
+    g.classList.remove("hint"); void g.getBBox(); g.classList.add("hint");
+    setTimeout(() => g.classList.remove("hint"), 1600);
+  }
+
+  $("hintBtn").addEventListener("click", hint);
+  $("retryBtn").addEventListener("click", restartLevel);
+  $("newBtn").addEventListener("click", startLevel);
+  $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
+
+  startLevel();
+})();
+</script>
