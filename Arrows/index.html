@@ -1,4 +1,5 @@
 <title>Runway Arrows</title>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@500;700;800&display=swap">
@@ -56,7 +57,7 @@
   body {
     margin: 0;
     background: var(--ground);
-    background: color-mix(in srgb, var(--ground) calc(100% - var(--lost) * 11%), #B8382A);
+    background: color-mix(in srgb, var(--ground) calc(100% - var(--lost) * 30%), #B8382A);
     transition: background 500ms ease;
     color: var(--text);
     font-family: var(--body);
@@ -106,6 +107,9 @@
   .icon-btn:hover { transform: translateY(-1px); border-color: var(--muted); }
   .icon-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  #soundBtn .mute { display: none; }
+  #soundBtn[aria-pressed="false"] .wave { display: none; }
+  #soundBtn[aria-pressed="false"] .mute { display: block; }
 
   .status {
     display: flex;
@@ -125,6 +129,49 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
+
+  /* Radio banner: station red on the left, play state in the text. */
+  .radio {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 6px 10px 6px 6px;
+    border-radius: 12px;
+    border: 2px solid var(--rule);
+    border-left: 6px solid #9E1616;
+    background: color-mix(in srgb, var(--ground) 70%, #ffffff 30%);
+  }
+  :root[data-theme="dark"] .radio { background: color-mix(in srgb, var(--ground) 70%, #000 30%); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio { background: color-mix(in srgb, var(--ground) 70%, #000 30%); } }
+  .radio-btn {
+    width: 36px; height: 36px; flex: none;
+    border-radius: 50%;
+    border: 0;
+    background: #9E1616;
+    color: #fff;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .radio-btn svg { width: 18px; height: 18px; fill: currentColor; }
+  .radio-btn .pause { display: none; }
+  .radio[data-state="playing"] .radio-btn .play, .radio[data-state="loading"] .radio-btn .play { display: none; }
+  .radio[data-state="playing"] .radio-btn .pause, .radio[data-state="loading"] .radio-btn .pause { display: block; }
+  .radio-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .radio-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
+  .radio-name { font-family: var(--display); font-weight: 700; font-size: 15px; color: #9E1616; }
+  :root[data-theme="dark"] .radio-name { color: #F08A8A; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio-name { color: #F08A8A; } }
+  .radio-sub { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .radio-sub em { font-style: normal; }
+  .radio[data-state="playing"] .radio-sub em { color: #2F9E44; }
+  .radio[data-state="error"] .radio-sub em { color: #B8382A; }
+  .radio[data-state="playing"] .radio-name::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9E1616; margin-right: 6px; vertical-align: middle;
+    animation: onair 1.2s ease-in-out infinite;
+  }
+  @keyframes onair { 50% { opacity: 0.25; } }
+  .radio-vol { width: 80px; accent-color: #9E1616; flex: none; }
 
   .stage {
     flex: 1;
@@ -221,6 +268,9 @@
     .lives { gap: 6px; }
     .life { width: 30px; height: 30px; }
     .stage { padding: 6px 0; }
+    .radio { margin-top: 6px; padding: 4px 8px 4px 4px; gap: 8px; }
+    .radio-btn { width: 32px; height: 32px; }
+    .radio-vol { width: 60px; }
     .btn.quiet { padding: 7px 12px; font-size: 13px; }
     .card { padding: 16px; }
   }
@@ -229,7 +279,9 @@
     .app { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; column-gap: 12px; }
     .topbar { grid-column: 1 / -1; padding: 6px 0; }
     .status { grid-column: 2; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 10px; padding: 8px 0 0; }
-    .stage { grid-column: 1; grid-row: 2 / 4; padding: 4px 0; }
+    .stage { grid-column: 1; grid-row: 2 / 5; padding: 4px 0; }
+    .radio { grid-column: 2; margin-top: 0; }
+    .radio-vol { display: none; }
     .footer { grid-column: 2; flex-direction: column; align-items: stretch; align-self: end; }
   }
 
@@ -244,6 +296,9 @@
     <div></div>
     <h1 id="title">Level 1</h1>
     <div class="right">
+      <button class="icon-btn" id="soundBtn" title="Sound" aria-label="Sound on" aria-pressed="true">
+        <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="mute" d="M16 9l5 6M21 9l-5 6"/></svg>
+      </button>
       <button class="icon-btn" id="hintBtn" title="Hint" aria-label="Hint">
         <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>
       </button>
@@ -253,6 +308,19 @@
   <div class="status">
     <div class="lives" id="lives" aria-label="Bows remaining"></div>
     <div class="count"><span id="left">0</span> left</div>
+  </div>
+
+  <div class="radio" id="radio" data-state="off">
+    <button class="radio-btn" id="radioBtn" aria-label="Play CHIR FM">
+      <svg viewBox="0 0 24 24" class="play"><path d="M7 4l13 8-13 8z"/></svg>
+      <svg viewBox="0 0 24 24" class="pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+    </button>
+    <div class="radio-text">
+      <span class="radio-name">CHIR-FM 107.9</span>
+      <span class="radio-sub">Gulf Islands Community Radio · <em id="radioState">Off</em></span>
+    </div>
+    <input type="range" class="radio-vol" id="radioVol" min="0" max="1" step="0.05" value="0.6" aria-label="Radio volume">
+    <audio id="radioAudio" preload="none" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
   </div>
 
   <div class="stage">
@@ -483,6 +551,91 @@
     return { W, H, gaps: 0, open: result.filter((s) => s.b < 0).length, trains: result.filter((s) => s.train).length, snakes };
   }
 
+  // ---------- Sound ----------
+  // Two short synthesised effects: a swish for a path leaving, a thunk for a collision.
+  let audio = null, soundOn = true;
+  try { soundOn = localStorage.getItem("runway-sound") !== "off"; } catch (e) {}
+  function ctx() {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+    return audio;
+  }
+  function noiseBuffer(ac, seconds) {
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate * seconds), ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+  function swish(cells) {
+    if (!soundOn) return;
+    const ac = ctx(), t = ac.currentTime, dur = 0.22 + Math.min(cells, 10) * 0.02;
+    const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, dur);
+    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(900, t); bp.frequency.exponentialRampToValueAtTime(3200, t + dur * 0.6); bp.frequency.exponentialRampToValueAtTime(1400, t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp).connect(g).connect(ac.destination);
+    src.start(t); src.stop(t + dur);
+  }
+  function thunk() {
+    if (!soundOn) return;
+    const ac = ctx(), t = ac.currentTime;
+    // Body: a low tone that drops fast, like wood on wood.
+    const osc = ac.createOscillator(); osc.type = "triangle";
+    osc.frequency.setValueAtTime(160, t); osc.frequency.exponentialRampToValueAtTime(48, t + 0.13);
+    const og = ac.createGain();
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.6, t + 0.008); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    osc.connect(og).connect(ac.destination); osc.start(t); osc.stop(t + 0.2);
+    // Click: a few milliseconds of dull noise on the impact.
+    const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 0.05);
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    src.connect(lp).connect(ng).connect(ac.destination); src.start(t); src.stop(t + 0.05);
+  }
+  const soundBtn = $("soundBtn");
+  const showSound = () => { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.setAttribute("aria-label", soundOn ? "Sound on" : "Sound off"); };
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn; showSound();
+    try { localStorage.setItem("runway-sound", soundOn ? "on" : "off"); } catch (e) {}
+    if (soundOn) swish(4);
+  });
+  showSound();
+
+  // ---------- Radio ----------
+  // CHIR-FM's live stream (the same address the station's own web player uses). Browsers
+  // only allow audio after a tap, so it starts on the first move unless it was turned off.
+  const radio = $("radio"), radioAudio = $("radioAudio"), radioState = $("radioState"), radioVol = $("radioVol");
+  let radioWanted = true;
+  try {
+    radioWanted = localStorage.getItem("runway-radio") !== "off";
+    const v = parseFloat(localStorage.getItem("runway-radio-vol")); if (!isNaN(v)) radioVol.value = v;
+  } catch (e) {}
+  radioAudio.volume = parseFloat(radioVol.value);
+  const setRadio = (state, text) => { radio.dataset.state = state; radioState.textContent = text; $("radioBtn").setAttribute("aria-label", state === "playing" || state === "loading" ? "Pause CHIR FM" : "Play CHIR FM"); };
+  function radioPlay() {
+    setRadio("loading", "Connecting…");
+    radioAudio.load();
+    radioAudio.play().then(() => setRadio("playing", "Live")).catch(() => setRadio("error", "Stream unavailable here"));
+  }
+  function radioStop() { radioAudio.pause(); radioAudio.removeAttribute("src"); radioAudio.load(); radioAudio.src = "https://stream.aiir.com/iirwxwmjurkuv"; setRadio("off", "Off"); }
+  radioAudio.addEventListener("playing", () => setRadio("playing", "Live"));
+  radioAudio.addEventListener("waiting", () => { if (radio.dataset.state === "playing") setRadio("loading", "Buffering…"); });
+  radioAudio.addEventListener("error", () => setRadio("error", "Stream unavailable here"));
+  $("radioBtn").addEventListener("click", () => {
+    const on = radio.dataset.state === "playing" || radio.dataset.state === "loading";
+    radioWanted = !on;
+    try { localStorage.setItem("runway-radio", radioWanted ? "on" : "off"); } catch (e) {}
+    if (on) radioStop(); else radioPlay();
+  });
+  radioVol.addEventListener("input", () => { radioAudio.volume = parseFloat(radioVol.value); try { localStorage.setItem("runway-radio-vol", radioVol.value); } catch (e) {} });
+  // First tap anywhere in the game starts the station if it's wanted and not already on.
+  document.addEventListener("pointerdown", function autostart(e) {
+    if (radio.contains(e.target)) return; // the banner's own controls decide for themselves
+    document.removeEventListener("pointerdown", autostart);
+    if (radioWanted && radio.dataset.state === "off") radioPlay();
+  });
+
   // ---------- Game state ----------
 
   let puzzle = null;   // { W, H, snakes }
@@ -627,6 +780,7 @@
       remaining--;
       updateHud();
       g.style.pointerEvents = "none";
+      swish(s.cells.length);
       const exitAt = free + 1;                       // head has left the grid
       const end = exitAt + s.cells.length + PAD;     // tail has left too
       slide(s, track, 0, end, (end / SPEED) * 1000, linear,
@@ -638,6 +792,7 @@
       updateHud();
       const reach = free + 0.35;
       slide(s, track, 0, reach, Math.max(110, (reach / SPEED) * 1000), easeIn, null, () => {
+        thunk();
         const b = els[blocker];
         if (b) {
           b.style.setProperty("--jx", DIRS[s.d][1] * 1.4 + "px");
