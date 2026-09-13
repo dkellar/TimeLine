@@ -320,7 +320,7 @@
       <span class="radio-sub">Gulf Islands Community Radio · <em id="radioState">Off</em></span>
     </div>
     <input type="range" class="radio-vol" id="radioVol" min="0" max="1" step="0.05" value="0.6" aria-label="Radio volume">
-    <audio id="radioAudio" preload="none" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
+    <audio id="radioAudio" preload="none" crossorigin="anonymous" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
   </div>
 
   <div class="stage">
@@ -568,13 +568,20 @@
   }
   function swish(cells) {
     if (!soundOn) return;
-    const ac = ctx(), t = ac.currentTime, dur = 0.22 + Math.min(cells, 10) * 0.02;
+    const ac = ctx(), t = ac.currentTime, dur = 0.42 + Math.min(cells, 10) * 0.03;
     const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, dur);
-    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.2;
-    bp.frequency.setValueAtTime(900, t); bp.frequency.exponentialRampToValueAtTime(3200, t + dur * 0.6); bp.frequency.exponentialRampToValueAtTime(1400, t + dur);
+    // Air rushing past: a resonant low-pass that sweeps up through the noise and back down.
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 3;
+    lp.frequency.setValueAtTime(300, t);
+    lp.frequency.exponentialRampToValueAtTime(2600, t + dur * 0.45);
+    lp.frequency.exponentialRampToValueAtTime(350, t + dur);
+    const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 180;
+    // Soft swell in, long tail out — no click at the start.
     const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(bp).connect(g).connect(ac.destination);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.5, t + dur * 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(hp).connect(lp).connect(g).connect(ac.destination);
     src.start(t); src.stop(t + dur);
   }
   function thunk() {
@@ -593,6 +600,35 @@
     ng.gain.setValueAtTime(0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
     src.connect(lp).connect(ng).connect(ac.destination); src.start(t); src.stop(t + 0.05);
   }
+  // A short tune: notes as [frequency, start, length] in seconds, soft-edged so they don't click.
+  function tune(notes, type, level) {
+    if (!soundOn) return;
+    const ac = ctx(), t0 = ac.currentTime + 0.05;
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200;
+    const master = ac.createGain(); master.gain.value = level;
+    lp.connect(master).connect(ac.destination);
+    for (const [f, start, len] of notes) {
+      const osc = ac.createOscillator(); osc.type = type; osc.frequency.value = f;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + start);
+      g.gain.exponentialRampToValueAtTime(1, t0 + start + 0.03);
+      g.gain.setValueAtTime(1, t0 + start + len * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + start + len);
+      osc.connect(g).connect(lp);
+      osc.start(t0 + start); osc.stop(t0 + start + len + 0.02);
+    }
+  }
+  const N = { C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392, A4: 440, B4: 493.88, C5: 523.25, E5: 659.25, G5: 783.99, C6: 1046.5, Fs4: 369.99, Bb3: 233.08 };
+  // Winner: a quick rising arpeggio landing on a held major chord (~2.5 s).
+  const winTune = () => tune([
+    [N.C4, 0, 0.16], [N.E4, 0.15, 0.16], [N.G4, 0.3, 0.16], [N.C5, 0.45, 0.16], [N.E5, 0.6, 0.16], [N.G5, 0.75, 0.2],
+    [N.C5, 1.0, 1.4], [N.E5, 1.0, 1.4], [N.G5, 1.0, 1.4], [N.C6, 1.0, 1.4],
+  ], "triangle", 0.28);
+  // Loser: the classic sagging "wah wah wah waaah" (~2.6 s).
+  const loseTune = () => tune([
+    [N.G4, 0, 0.42], [N.Fs4, 0.45, 0.42], [N.F4, 0.9, 0.42], [N.E4, 1.35, 1.2], [N.Bb3, 1.35, 1.2],
+  ], "sawtooth", 0.14);
+
   const soundBtn = $("soundBtn");
   const showSound = () => { soundBtn.setAttribute("aria-pressed", String(soundOn)); soundBtn.setAttribute("aria-label", soundOn ? "Sound on" : "Sound off"); };
   soundBtn.addEventListener("click", () => {
@@ -611,10 +647,22 @@
     radioWanted = localStorage.getItem("runway-radio") !== "off";
     const v = parseFloat(localStorage.getItem("runway-radio-vol")); if (!isNaN(v)) radioVol.value = v;
   } catch (e) {}
-  radioAudio.volume = parseFloat(radioVol.value);
+  // Volume runs through a gain node in the audio graph: iOS ignores audio.volume outright.
+  let radioGain = null;
+  const radioLevel = () => parseFloat(radioVol.value);
+  function wireRadio() {
+    if (radioGain) return;
+    try {
+      const ac = ctx();
+      radioGain = ac.createGain();
+      radioGain.gain.value = radioLevel();
+      ac.createMediaElementSource(radioAudio).connect(radioGain).connect(ac.destination);
+    } catch (e) { radioGain = null; radioAudio.volume = radioLevel(); }
+  }
   const setRadio = (state, text) => { radio.dataset.state = state; radioState.textContent = text; $("radioBtn").setAttribute("aria-label", state === "playing" || state === "loading" ? "Pause CHIR FM" : "Play CHIR FM"); };
   function radioPlay() {
     setRadio("loading", "Connecting…");
+    wireRadio();
     radioAudio.load();
     radioAudio.play().then(() => setRadio("playing", "Live")).catch(() => setRadio("error", "Stream unavailable here"));
   }
@@ -628,7 +676,10 @@
     try { localStorage.setItem("runway-radio", radioWanted ? "on" : "off"); } catch (e) {}
     if (on) radioStop(); else radioPlay();
   });
-  radioVol.addEventListener("input", () => { radioAudio.volume = parseFloat(radioVol.value); try { localStorage.setItem("runway-radio-vol", radioVol.value); } catch (e) {} });
+  radioVol.addEventListener("input", () => {
+    if (radioGain) radioGain.gain.setTargetAtTime(radioLevel(), audio.currentTime, 0.02); else radioAudio.volume = radioLevel();
+    try { localStorage.setItem("runway-radio-vol", radioVol.value); } catch (e) {}
+  });
   // First tap anywhere in the game starts the station if it's wanted and not already on.
   document.addEventListener("pointerdown", function autostart(e) {
     if (radio.contains(e.target)) return; // the banner's own controls decide for themselves
@@ -809,6 +860,7 @@
 
   function finish(won) {
     over = true;
+    if (won) winTune(); else loseTune();
     $("cardTitle").textContent = won ? `Level ${level} cleared` : "Out of bows";
     $("cardText").textContent = won
       ? (drops === MAX_DROPS ? "Not a single bump." : `${MAX_DROPS - drops} ${MAX_DROPS - drops === 1 ? "bump" : "bumps"} along the way.`)
