@@ -1,4 +1,5 @@
 <title>Runway Arrows</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@500;700;800&display=swap">
 <style>
@@ -53,16 +54,19 @@
     color: var(--text);
     font-family: var(--body);
     font-size: 16px;
-    min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .app {
     width: min(100%, 720px);
     margin: 0 auto;
-    padding: 0 16px 32px;
+    padding: env(safe-area-inset-top) 16px max(20px, env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
   }
 
   .topbar {
@@ -117,16 +121,15 @@
 
   .stage {
     flex: 1;
+    min-height: 0;
     display: grid;
     place-items: center;
     position: relative;
-    padding: 12px 0;
-    min-height: 320px;
+    padding: 10px 0;
   }
   svg.board {
     width: 100%;
-    height: auto;
-    max-height: 72vh;
+    height: 100%;
     display: block;
     touch-action: manipulation;
   }
@@ -141,7 +144,9 @@
     pointer-events: none;
     transition: stroke 160ms ease;
   }
-  .snake:hover .line, .snake:hover .head { stroke: var(--accent); }
+  @media (hover: hover) {
+    .snake:hover .line, .snake:hover .head { stroke: var(--accent); }
+  }
   .snake.hint .line, .snake.hint .head { stroke: var(--accent); animation: blink 500ms ease 3; }
   .snake.hit-shake { animation: jiggle 260ms ease; }
   @keyframes blink { 50% { opacity: 0.25; } }
@@ -193,6 +198,33 @@
   .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
   .footer { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+  /* Touch screens: fatter tap targets, no hover states. */
+  :root.mobile .snake .hit, :root.touch .snake .hit { stroke-width: 8.5; }
+  :root.touch .icon-btn:hover, :root.touch .btn:hover { transform: none; }
+
+  /* Phones: tighter chrome so the board gets the height. */
+  @media (max-width: 600px) {
+    .app { padding-left: 10px; padding-right: 10px; }
+    .topbar { padding: 10px 0 8px; }
+    .topbar h1 { font-size: 20px; }
+    .icon-btn { width: 36px; height: 36px; }
+    .icon-btn svg { width: 20px; height: 20px; }
+    .status { padding: 8px 0 0; }
+    .lives { gap: 6px; }
+    .life { width: 30px; height: 30px; }
+    .stage { padding: 6px 0; }
+    .btn.quiet { padding: 7px 12px; font-size: 13px; }
+    .card { padding: 16px; }
+  }
+  /* Phone held sideways: put the controls beside the board instead of under it. */
+  @media (max-width: 900px) and (max-height: 500px) {
+    .app { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; column-gap: 12px; }
+    .topbar { grid-column: 1 / -1; padding: 6px 0; }
+    .status { grid-column: 2; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 10px; padding: 8px 0 0; }
+    .stage { grid-column: 1; grid-row: 2 / 4; padding: 4px 0; }
+    .footer { grid-column: 2; flex-direction: column; align-items: stretch; align-self: end; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .snake.hint .line, .snake.hint .head, .snake.hit-shake { animation-duration: 100ms; }
@@ -248,6 +280,11 @@
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const key = (r, c) => r * 1000 + c;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // Phones and tablets: coarse pointer or a mobile user agent. Drives the touch styling above.
+  const isTouch = matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 1;
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (isTouch && Math.min(screen.width, screen.height) < 900);
+  document.documentElement.classList.toggle("touch", isTouch);
+  document.documentElement.classList.toggle("mobile", isMobile);
 
   let level = 1;
   try { level = Math.max(1, parseInt(localStorage.getItem("runway-level"), 10) || 1); } catch (e) {}
