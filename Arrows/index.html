@@ -171,7 +171,6 @@
     animation: onair 1.2s ease-in-out infinite;
   }
   @keyframes onair { 50% { opacity: 0.25; } }
-  .radio-vol { width: 80px; accent-color: #9E1616; flex: none; }
 
   .stage {
     flex: 1;
@@ -270,7 +269,6 @@
     .stage { padding: 6px 0; }
     .radio { margin-top: 6px; padding: 4px 8px 4px 4px; gap: 8px; }
     .radio-btn { width: 32px; height: 32px; }
-    .radio-vol { width: 60px; }
     .btn.quiet { padding: 7px 12px; font-size: 13px; }
     .card { padding: 16px; }
   }
@@ -281,7 +279,6 @@
     .status { grid-column: 2; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 10px; padding: 8px 0 0; }
     .stage { grid-column: 1; grid-row: 2 / 5; padding: 4px 0; }
     .radio { grid-column: 2; margin-top: 0; }
-    .radio-vol { display: none; }
     .footer { grid-column: 2; flex-direction: column; align-items: stretch; align-self: end; }
   }
 
@@ -319,8 +316,7 @@
       <span class="radio-name">CHIR-FM 107.9</span>
       <span class="radio-sub">Gulf Islands Community Radio · <em id="radioState">Off</em></span>
     </div>
-    <input type="range" class="radio-vol" id="radioVol" min="0" max="1" step="0.05" value="0.6" aria-label="Radio volume">
-    <audio id="radioAudio" preload="none" crossorigin="anonymous" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
+    <audio id="radioAudio" preload="none" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
   </div>
 
   <div class="stage">
@@ -641,28 +637,12 @@
   // ---------- Radio ----------
   // CHIR-FM's live stream (the same address the station's own web player uses). Browsers
   // only allow audio after a tap, so it starts on the first move unless it was turned off.
-  const radio = $("radio"), radioAudio = $("radioAudio"), radioState = $("radioState"), radioVol = $("radioVol");
+  const radio = $("radio"), radioAudio = $("radioAudio"), radioState = $("radioState");
   let radioWanted = true;
-  try {
-    radioWanted = localStorage.getItem("runway-radio") !== "off";
-    const v = parseFloat(localStorage.getItem("runway-radio-vol")); if (!isNaN(v)) radioVol.value = v;
-  } catch (e) {}
-  // Volume runs through a gain node in the audio graph: iOS ignores audio.volume outright.
-  let radioGain = null;
-  const radioLevel = () => parseFloat(radioVol.value);
-  function wireRadio() {
-    if (radioGain) return;
-    try {
-      const ac = ctx();
-      radioGain = ac.createGain();
-      radioGain.gain.value = radioLevel();
-      ac.createMediaElementSource(radioAudio).connect(radioGain).connect(ac.destination);
-    } catch (e) { radioGain = null; radioAudio.volume = radioLevel(); }
-  }
+  try { radioWanted = localStorage.getItem("runway-radio") !== "off"; } catch (e) {}
   const setRadio = (state, text) => { radio.dataset.state = state; radioState.textContent = text; $("radioBtn").setAttribute("aria-label", state === "playing" || state === "loading" ? "Pause CHIR FM" : "Play CHIR FM"); };
   function radioPlay() {
     setRadio("loading", "Connecting…");
-    wireRadio();
     radioAudio.load();
     radioAudio.play().then(() => setRadio("playing", "Live")).catch(() => setRadio("error", "Stream unavailable here"));
   }
@@ -675,10 +655,6 @@
     radioWanted = !on;
     try { localStorage.setItem("runway-radio", radioWanted ? "on" : "off"); } catch (e) {}
     if (on) radioStop(); else radioPlay();
-  });
-  radioVol.addEventListener("input", () => {
-    if (radioGain) radioGain.gain.setTargetAtTime(radioLevel(), audio.currentTime, 0.02); else radioAudio.volume = radioLevel();
-    try { localStorage.setItem("runway-radio-vol", radioVol.value); } catch (e) {}
   });
   // First tap anywhere in the game starts the station if it's wanted and not already on.
   document.addEventListener("pointerdown", function autostart(e) {
