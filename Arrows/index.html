@@ -48,9 +48,16 @@
   }
 
   * { box-sizing: border-box; }
+  /* Each bow lost pushes the ground a step deeper into red: 0, 1, 2 bows gone. */
+  :root { --lost: 0; }
+  :root[data-lost="1"] { --lost: 1; }
+  :root[data-lost="2"] { --lost: 2; }
+  :root[data-lost="3"] { --lost: 3; }
   body {
     margin: 0;
     background: var(--ground);
+    background: color-mix(in srgb, var(--ground) calc(100% - var(--lost) * 11%), #B8382A);
+    transition: background 500ms ease;
     color: var(--text);
     font-family: var(--body);
     font-size: 16px;
@@ -545,6 +552,7 @@
   function updateHud() {
     $("title").textContent = "Level " + level;
     $("left").textContent = remaining;
+    document.documentElement.dataset.lost = MAX_DROPS - drops;
     const wrap = $("lives");
     wrap.innerHTML = "";
     for (let i = 0; i < MAX_DROPS; i++) {
