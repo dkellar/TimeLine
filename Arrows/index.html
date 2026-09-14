@@ -635,16 +635,19 @@
   showSound();
 
   // ---------- Radio ----------
-  // CHIR-FM's live stream (the same address the station's own web player uses). Browsers
-  // only allow audio after a tap, so it starts on the first move unless it was turned off.
+  // CHIR-FM's live stream (the same address the station's own web player uses). It starts
+  // as soon as the page opens; where the browser refuses sound before a tap, it starts on
+  // the first move instead. Pausing it holds for this visit only.
   const radio = $("radio"), radioAudio = $("radioAudio"), radioState = $("radioState");
   let radioWanted = true;
-  try { radioWanted = localStorage.getItem("runway-radio") !== "off"; } catch (e) {}
   const setRadio = (state, text) => { radio.dataset.state = state; radioState.textContent = text; $("radioBtn").setAttribute("aria-label", state === "playing" || state === "loading" ? "Pause CHIR FM" : "Play CHIR FM"); };
   function radioPlay() {
     setRadio("loading", "Connecting…");
     radioAudio.load();
-    radioAudio.play().then(() => setRadio("playing", "Live")).catch(() => setRadio("error", "Stream unavailable here"));
+    radioAudio.play().then(() => setRadio("playing", "Live")).catch((e) => {
+      if (e && e.name === "NotAllowedError") setRadio("off", "Starts with your first tap");
+      else setRadio("error", "Stream unavailable here");
+    });
   }
   function radioStop() { radioAudio.pause(); radioAudio.removeAttribute("src"); radioAudio.load(); radioAudio.src = "https://stream.aiir.com/iirwxwmjurkuv"; setRadio("off", "Off"); }
   radioAudio.addEventListener("playing", () => setRadio("playing", "Live"));
@@ -653,10 +656,10 @@
   $("radioBtn").addEventListener("click", () => {
     const on = radio.dataset.state === "playing" || radio.dataset.state === "loading";
     radioWanted = !on;
-    try { localStorage.setItem("runway-radio", radioWanted ? "on" : "off"); } catch (e) {}
     if (on) radioStop(); else radioPlay();
   });
   // First tap anywhere in the game starts the station if it's wanted and not already on.
+  radioPlay();
   document.addEventListener("pointerdown", function autostart(e) {
     if (radio.contains(e.target)) return; // the banner's own controls decide for themselves
     document.removeEventListener("pointerdown", autostart);
