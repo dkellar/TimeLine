@@ -107,6 +107,11 @@
   .icon-btn:hover { transform: translateY(-1px); border-color: var(--muted); }
   .icon-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .hint-btn { width: auto; padding: 0 10px 0 8px; gap: 4px; grid-auto-flow: column; }
+  .hint-btn .price { font-weight: 800; font-size: 13px; color: #2F9E44; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+  .hint-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .hint-btn:disabled .price { color: #B8382A; }
+  .hint-btn:disabled:hover { transform: none; border-color: var(--rule); }
   #soundBtn .mute { display: none; }
   #soundBtn[aria-pressed="false"] .wave { display: none; }
   #soundBtn[aria-pressed="false"] .mute { display: block; }
@@ -286,6 +291,8 @@
     .topbar { padding: 10px 0 8px; }
     .topbar h1 { font-size: 20px; }
     .icon-btn { width: 36px; height: 36px; }
+    .hint-btn { width: auto; padding: 0 8px 0 6px; }
+    .hint-btn .price { font-size: 12px; }
     .icon-btn svg { width: 20px; height: 20px; }
     .status { padding: 8px 0 0; }
     .counts { gap: 10px; }
@@ -324,8 +331,9 @@
       <button class="icon-btn" id="soundBtn" title="Sound" aria-label="Sound on" aria-pressed="true">
         <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="mute" d="M16 9l5 6M21 9l-5 6"/></svg>
       </button>
-      <button class="icon-btn" id="hintBtn" title="Hint" aria-label="Hint">
+      <button class="icon-btn hint-btn" id="hintBtn" title="Hint" aria-label="Hint">
         <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>
+        <span class="price" id="hintPrice">$10</span>
       </button>
     </div>
   </div>
@@ -673,31 +681,50 @@
   // CHIR-FM's live stream (the same address the station's own web player uses). It starts
   // as soon as the page opens; where the browser refuses sound before a tap, it starts on
   // the first move instead. Pausing it holds for this visit only.
+  const STREAM = "https://stream.aiir.com/iirwxwmjurkuv";
   const radio = $("radio"), radioAudio = $("radioAudio"), radioState = $("radioState");
-  let radioWanted = true;
+  let radioWanted = true, radioWatch = 0, radioAttempt = 0;
   const setRadio = (state, text) => { radio.dataset.state = state; radioState.textContent = text; $("radioBtn").setAttribute("aria-label", state === "playing" || state === "loading" ? "Pause CHIR FM" : "Play CHIR FM"); };
+  const radioOn = () => radio.dataset.state === "playing" || radio.dataset.state === "loading";
+  // "Live" is only shown once sound is genuinely flowing: the stream's clock has to move.
+  // play() resolving isn't proof — some browsers resolve it and then never deliver audio.
   function radioPlay() {
+    const attempt = ++radioAttempt;
+    clearTimeout(radioWatch);
     setRadio("loading", "Connecting…");
+    radioAudio.src = STREAM;
     radioAudio.load();
-    radioAudio.play().then(() => setRadio("playing", "Live")).catch((e) => {
-      if (e && e.name === "NotAllowedError") setRadio("off", "Starts with your first tap");
+    const started = radioAudio.currentTime;
+    radioAudio.play().catch((e) => {
+      if (attempt !== radioAttempt) return;
+      if (e && e.name === "NotAllowedError") setRadio("off", "Tap anywhere to start");
       else setRadio("error", "Stream unavailable here");
     });
+    // Watchdog: if nothing has actually played after a few seconds, don't claim it has.
+    radioWatch = setTimeout(() => {
+      if (attempt !== radioAttempt) return;
+      if (radioAudio.paused || radioAudio.currentTime <= started + 0.5) {
+        radioAudio.pause();
+        setRadio("off", "Tap anywhere to start");
+      }
+    }, 6000);
   }
-  function radioStop() { radioAudio.pause(); radioAudio.removeAttribute("src"); radioAudio.load(); radioAudio.src = "https://stream.aiir.com/iirwxwmjurkuv"; setRadio("off", "Off"); }
-  radioAudio.addEventListener("playing", () => setRadio("playing", "Live"));
+  function radioStop() { clearTimeout(radioWatch); radioAttempt++; radioAudio.pause(); radioAudio.removeAttribute("src"); radioAudio.load(); setRadio("off", "Off"); }
+  radioAudio.addEventListener("timeupdate", () => { if (radioOn() && !radioAudio.paused && radioAudio.currentTime > 0.5) setRadio("playing", "Live"); });
   radioAudio.addEventListener("waiting", () => { if (radio.dataset.state === "playing") setRadio("loading", "Buffering…"); });
+  radioAudio.addEventListener("stalled", () => { if (radio.dataset.state === "playing") setRadio("loading", "Reconnecting…"); });
   radioAudio.addEventListener("error", () => setRadio("error", "Stream unavailable here"));
+  // The browser can pause it on its own (call, headphones unplugged, tab discarded).
+  radioAudio.addEventListener("pause", () => { if (radio.dataset.state === "playing") setRadio("off", "Tap anywhere to start"); });
   $("radioBtn").addEventListener("click", () => {
-    const on = radio.dataset.state === "playing" || radio.dataset.state === "loading";
+    const on = radioOn();
     radioWanted = !on;
     if (on) radioStop(); else radioPlay();
   });
-  // First tap anywhere in the game starts the station if it's wanted and not already on.
+  // Any tap in the game starts the station whenever it's wanted but not running.
   radioPlay();
-  document.addEventListener("pointerdown", function autostart(e) {
+  document.addEventListener("pointerdown", (e) => {
     if (radio.contains(e.target)) return; // the banner's own controls decide for themselves
-    document.removeEventListener("pointerdown", autostart);
     if (radioWanted && radio.dataset.state === "off") radioPlay();
   });
 
@@ -718,6 +745,16 @@
     bank = parseInt(localStorage.getItem("runway-bank"), 10) || 0;
   } catch (e) {}
   const money = (n) => n.toLocaleString("en-US");
+  // Hints are paid for out of the winnings, and each one in a level costs more than the last.
+  const HINT_PRICES = [10, 25, 50, 100, 200, 400];
+  let hintsUsed = 0;
+  const hintPrice = () => HINT_PRICES[Math.min(hintsUsed, HINT_PRICES.length - 1)];
+  function updateHintBtn() {
+    const price = hintPrice(), btn = $("hintBtn");
+    $("hintPrice").textContent = "$" + money(price);
+    btn.disabled = bank < price || over;
+    btn.title = bank < price ? `Hint costs $${money(price)} — you have $${money(bank)}` : `Hint — $${money(price)}`;
+  }
 
   // Score: pace — arrows cleared per second, scaled — plus a difficulty bonus for the
   // number of arrows the puzzle had. Faster clears and bigger boards both score higher.
@@ -741,6 +778,7 @@
     drops = MAX_DROPS; remaining = p.snakes.length; over = false;
     animating.clear(); armed.clear();
     stopClock(); startedAt = 0; $("clock").textContent = "0:00";
+    hintsUsed = 0;
     overlay.classList.remove("show");
     render();
     updateHud();
@@ -796,6 +834,7 @@
     $("left").textContent = remaining;
     $("best").textContent = best ? best.score : 0;
     $("bank").textContent = money(bank);
+    updateHintBtn();
     $("best").title = best ? `Level ${best.level}: ${best.arrows} arrows in ${fmtTime(best.seconds)}` : "";
     document.documentElement.dataset.lost = MAX_DROPS - drops;
     const wrap = $("lives");
@@ -930,6 +969,7 @@
   function finish(won) {
     over = true;
     stopClock();
+    updateHintBtn();
     if (won) winTune(); else loseTune();
     $("cardTitle").textContent = won ? `Level ${level} cleared` : "Out of bows";
     const scoreEl = $("cardScore");
@@ -959,8 +999,13 @@
 
   function hint() {
     if (over) return;
+    const price = hintPrice();
+    if (bank < price) { updateHintBtn(); return; }
     const clear = puzzle.snakes.filter((s) => alive[s.id] && !animating.has(s.id) && scan(s).clear);
     if (!clear.length) return;
+    bank -= price; hintsUsed++;
+    try { localStorage.setItem("runway-bank", String(bank)); } catch (e) {}
+    updateHud();
     const g = els[clear[rand(clear.length)].id];
     g.classList.remove("hint"); void g.getBBox(); g.classList.add("hint");
     setTimeout(() => g.classList.remove("hint"), 1600);
