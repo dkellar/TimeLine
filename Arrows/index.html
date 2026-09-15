@@ -128,6 +128,9 @@
   .mode-name { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--accent); }
   .mode-btn.risk .mode-name { color: #B8382A; }
   .mode-desc { font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.35; }
+  .card.modes .reset { margin-top: 6px; color: var(--muted); }
+  .card.modes .reset.confirm { color: #fff; background: #B8382A; border-color: #B8382A; }
+  .reset-note { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); min-height: 1.2em; }
   .icon-btn {
     width: 42px; height: 42px;
     border-radius: 12px;
@@ -414,6 +417,8 @@
           <span class="mode-name">High stakes</span>
           <span class="mode-desc">No bows. Every bump costs points — and the cost doubles each time. Drop below zero and you're out.</span>
         </button>
+        <button class="btn quiet reset" id="resetBtn">Reset score</button>
+        <p class="reset-note" id="resetNote">Zeroes your money and best score. Tap again to confirm.</p>
       </div>
     </div>
     <div class="overlay" id="overlay">
@@ -1122,6 +1127,23 @@
     try { localStorage.setItem("runway-mode", mode); } catch (e) {}
   });
   $("modeBtn").addEventListener("click", () => { if (!over) modeOverlay.classList.add("show"); });
+  // Reset takes two taps so a stray touch can't wipe the winnings.
+  const resetBtn = $("resetBtn"), resetNote = $("resetNote");
+  let resetArmed = 0;
+  resetBtn.addEventListener("click", () => {
+    if (!resetArmed) {
+      resetArmed = setTimeout(() => { resetArmed = 0; resetBtn.classList.remove("confirm"); resetBtn.textContent = "Reset score"; }, 4000);
+      resetBtn.classList.add("confirm"); resetBtn.textContent = `Really reset $${money(bank)}?`;
+      return;
+    }
+    clearTimeout(resetArmed); resetArmed = 0;
+    bank = 0; best = null;
+    try { localStorage.setItem("runway-bank", "0"); localStorage.removeItem("runway-best"); } catch (e) {}
+    resetBtn.classList.remove("confirm"); resetBtn.textContent = "Reset score";
+    resetNote.textContent = "Money and best score are back to zero.";
+    setTimeout(() => { resetNote.textContent = "Zeroes your money and best score. Tap again to confirm."; }, 3000);
+    updateHud();
+  });
   $("newBtn").addEventListener("click", startLevel);
   $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
 
