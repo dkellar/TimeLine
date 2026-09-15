@@ -49,6 +49,7 @@
   }
 
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   /* Each bow lost pushes the ground a step deeper into red: 0, 1, 2 bows gone. */
   :root { --lost: 0; }
   :root[data-lost="1"] { --lost: 1; }
@@ -94,6 +95,39 @@
     font-variant-numeric: tabular-nums;
   }
   .topbar .right { display: flex; justify-content: flex-end; gap: 8px; }
+  .points { display: flex; align-items: baseline; gap: 5px; }
+  .points-value { font-family: var(--display); font-weight: 700; font-size: clamp(20px, 5vw, 28px); font-variant-numeric: tabular-nums; line-height: 1; color: var(--text); transition: color 200ms ease; }
+  .points-label { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .points.risk .points-value { color: #2F9E44; }
+  .points.low .points-value { color: #B8382A; }
+  .points.hit .points-value { animation: pointsHit 500ms ease; }
+  @keyframes pointsHit { 30% { transform: scale(1.2); color: #B8382A; } }
+  .stake { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: color-mix(in srgb, #B8382A 14%, transparent); color: #B8382A; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .stake-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+  .card.modes { gap: 12px; width: min(100%, 420px); }
+  .card.modes h2 { margin-bottom: 4px; }
+  .mode-btn {
+    width: 100%;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    text-align: left;
+    padding: 14px 16px;
+    border-radius: 14px;
+    border: 2px solid var(--rule);
+    background: color-mix(in srgb, var(--ground) 60%, #fff 40%);
+    color: var(--text);
+    font-family: var(--body);
+    cursor: pointer;
+    transition: transform 120ms ease, border-color 120ms ease;
+  }
+  :root[data-theme="dark"] .mode-btn { background: color-mix(in srgb, var(--ground) 70%, #000 30%); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mode-btn { background: color-mix(in srgb, var(--ground) 70%, #000 30%); } }
+  .mode-btn:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .mode-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .mode-btn.risk { border-color: color-mix(in srgb, #B8382A 45%, var(--rule)); }
+  .mode-btn.risk:hover { border-color: #B8382A; }
+  .mode-name { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--accent); }
+  .mode-btn.risk .mode-name { color: #B8382A; }
+  .mode-desc { font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.35; }
   .icon-btn {
     width: 42px; height: 42px;
     border-radius: 12px;
@@ -290,6 +324,8 @@
     .app { padding-left: 10px; padding-right: 10px; }
     .topbar { padding: 10px 0 8px; }
     .topbar h1 { font-size: 20px; }
+    .points-value { font-size: 20px; }
+    .points-label { display: none; }
     .icon-btn { width: 36px; height: 36px; }
     .hint-btn { width: auto; padding: 0 8px 0 6px; }
     .hint-btn .price { font-size: 12px; }
@@ -325,7 +361,10 @@
 
 <div class="app">
   <div class="topbar">
-    <div></div>
+    <div class="points" id="pointsWrap" title="Points you'd bank if you finished right now — they tick down with the clock">
+      <span class="points-value" id="points">0</span>
+      <span class="points-label" id="pointsLabel">pts</span>
+    </div>
     <h1 id="title">Level 1</h1>
     <div class="right">
       <button class="icon-btn" id="soundBtn" title="Sound" aria-label="Sound on" aria-pressed="true">
@@ -340,6 +379,7 @@
 
   <div class="status">
     <div class="lives" id="lives" aria-label="Bows remaining"></div>
+    <div class="stake" id="stake" hidden><span class="stake-label">Next bump</span> <span id="stakeCost">−0</span></div>
     <div class="counts">
       <span class="count"><span id="left">0</span> left</span>
       <span class="count"><span id="clock">0:00</span></span>
@@ -363,6 +403,19 @@
 
   <div class="stage">
     <svg class="board" id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="overlay show" id="modeOverlay">
+      <div class="card modes">
+        <h2>Choose your game</h2>
+        <button class="mode-btn" data-mode="classic">
+          <span class="mode-name">Classic</span>
+          <span class="mode-desc">Three bows. A bump costs a bow and 15% of the level's points.</span>
+        </button>
+        <button class="mode-btn risk" data-mode="risk">
+          <span class="mode-name">High stakes</span>
+          <span class="mode-desc">No bows. Every bump costs points — and the cost doubles each time. Drop below zero and you're out.</span>
+        </button>
+      </div>
+    </div>
     <div class="overlay" id="overlay">
       <div class="card">
         <h2 id="cardTitle">Level cleared</h2>
@@ -377,6 +430,7 @@
     <button class="btn quiet" id="retryBtn">Restart level</button>
     <button class="btn quiet" id="newBtn">New puzzle</button>
     <button class="btn quiet" id="skipBtn">Skip level</button>
+    <button class="btn quiet" id="modeBtn">Mode</button>
   </div>
 </div>
 
@@ -756,17 +810,36 @@
     btn.title = bank < price ? `Hint costs $${money(price)} — you have $${money(bank)}` : `Hint — $${money(price)}`;
   }
 
-  // Score: pace — arrows cleared per second, scaled — plus a difficulty bonus for the
-  // number of arrows the puzzle had. Faster clears and bigger boards both score higher.
-  // Each bow lost along the way takes 15% off the total.
+  // Points run live and tick down from the first second. Each arrow starts worth 20, is
+  // worth 10 at par pace (two seconds an arrow) and keeps sliding as the clock runs on —
+  // plus a flat 2 per arrow for the size of the board. Whatever the counter shows when the
+  // last arrow leaves is banked.
+  //   Classic:     each bow lost takes 15% off at the end.
+  //   High stakes: each bump deducts points on the spot, doubling every time; under zero
+  //                ends the level.
   const BUMP_PENALTY = 0.15;
-  const scoreFor = (arrows, seconds, bumps) => Math.round(((arrows / Math.max(seconds, 1)) * 100 + arrows * 2) * (1 - BUMP_PENALTY * bumps));
+  let mode = "classic";
+  try { mode = localStorage.getItem("runway-mode") === "risk" ? "risk" : "classic"; } catch (e) {}
+  let riskBumps = 0, riskPenalty = 0;
+  const bumpCost = (n) => puzzle.snakes.length * Math.pow(2, n); // cost of the (n+1)th bump
+  function basePoints(seconds) {
+    const arrows = puzzle.snakes.length, par = arrows * 2;
+    return Math.round(20 * arrows * par / (par + seconds)) + arrows * 2;
+  }
+  const livePoints = () => basePoints(elapsed()) - riskPenalty;
   const fmtTime = (sec) => Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
   const elapsed = () => (startedAt ? (performance.now() - startedAt) / 1000 : 0);
+  function showPoints() {
+    if (!puzzle) return;
+    const pts = livePoints(), w = $("pointsWrap");
+    $("points").textContent = money(pts);
+    w.classList.toggle("risk", mode === "risk");
+    w.classList.toggle("low", mode === "risk" && pts < bumpCost(riskBumps));
+  }
   function startClock() {
     if (startedAt) return;
     startedAt = performance.now();
-    clockTimer = setInterval(() => { $("clock").textContent = fmtTime(elapsed()); }, 250);
+    clockTimer = setInterval(() => { $("clock").textContent = fmtTime(elapsed()); showPoints(); }, 250);
   }
   function stopClock() { clearInterval(clockTimer); clockTimer = 0; }
 
@@ -778,7 +851,7 @@
     drops = MAX_DROPS; remaining = p.snakes.length; over = false;
     animating.clear(); armed.clear();
     stopClock(); startedAt = 0; $("clock").textContent = "0:00";
-    hintsUsed = 0;
+    hintsUsed = 0; riskBumps = 0; riskPenalty = 0;
     overlay.classList.remove("show");
     render();
     updateHud();
@@ -835,6 +908,10 @@
     $("best").textContent = best ? best.score : 0;
     $("bank").textContent = money(bank);
     updateHintBtn();
+    showPoints();
+    $("lives").hidden = mode === "risk";
+    $("stake").hidden = mode !== "risk";
+    if (mode === "risk") $("stakeCost").textContent = "−" + money(bumpCost(riskBumps));
     $("best").title = best ? `Level ${best.level}: ${best.arrows} arrows in ${fmtTime(best.seconds)}` : "";
     document.documentElement.dataset.lost = MAX_DROPS - drops;
     const wrap = $("lives");
@@ -955,7 +1032,13 @@
       // ready to leave on its own once the way is clear.
       const track = trackOf(s);
       animating.add(id);
-      drops--;
+      if (mode === "risk") {
+        riskPenalty += bumpCost(riskBumps); riskBumps++;
+        drops = Math.max(0, MAX_DROPS - riskBumps); // only drives the red background here
+        const w = $("pointsWrap"); w.classList.remove("hit"); void w.offsetWidth; w.classList.add("hit");
+      } else {
+        drops--;
+      }
       updateHud();
       armed.add(id);
       g.classList.add("armed");
@@ -970,7 +1053,8 @@
         }
         slide(s, track, reach, 0, 260, easeOut, null, () => {
           animating.delete(id);
-          if (drops === 0) finish(false); else releaseArmed();
+          const busted = mode === "risk" ? livePoints() < 0 : drops === 0;
+          if (busted) finish(false); else releaseArmed();
         });
       });
     }
@@ -981,12 +1065,14 @@
     stopClock();
     updateHintBtn();
     if (won) winTune(); else loseTune();
-    $("cardTitle").textContent = won ? `Level ${level} cleared` : "Out of bows";
+    $("cardTitle").textContent = won ? `Level ${level} cleared` : (mode === "risk" ? "Bankrupt" : "Out of bows");
     const scoreEl = $("cardScore");
     scoreEl.hidden = !won;
     if (won) {
-      const bumps = MAX_DROPS - drops;
-      const arrows = puzzle.snakes.length, seconds = elapsed(), score = scoreFor(arrows, seconds, bumps);
+      const bumps = mode === "risk" ? riskBumps : MAX_DROPS - drops;
+      const arrows = puzzle.snakes.length, seconds = elapsed();
+      const score = Math.max(0, mode === "risk" ? livePoints() : Math.round(livePoints() * (1 - BUMP_PENALTY * bumps)));
+      showPoints();
       const isBest = !best || score > best.score;
       if (isBest) {
         best = { score, level, arrows, seconds: Math.round(seconds) };
@@ -997,9 +1083,14 @@
       scoreEl.innerHTML = `+$${money(score)}<small>${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}you have $${money(bank)}</small>`;
       updateHud();
       const bw = $("bankWrap"); bw.classList.remove("paid"); void bw.offsetWidth; bw.classList.add("paid");
-      $("cardText").textContent = `${arrows} arrows in ${fmtTime(seconds)}` + (bumps ? ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} (−${Math.round(BUMP_PENALTY * bumps * 100)}%)` : " · no bumps");
+      const bumpNote = !bumps ? " · no bumps"
+        : mode === "risk" ? ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} cost ${money(riskPenalty)}`
+        : ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} (−${Math.round(BUMP_PENALTY * bumps * 100)}%)`;
+      $("cardText").textContent = `${arrows} arrows in ${fmtTime(seconds)}` + bumpNote;
     } else {
-      $("cardText").textContent = `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
+      $("cardText").textContent = mode === "risk"
+        ? `${riskBumps} bumps cost ${money(riskPenalty)} points — the counter went below zero.`
+        : `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
     }
     $("cardBtn").textContent = won ? "Next level" : "Try again";
     $("cardBtn").onclick = won ? () => { level++; startLevel(); } : restartLevel;
@@ -1023,6 +1114,14 @@
 
   $("hintBtn").addEventListener("click", hint);
   $("retryBtn").addEventListener("click", restartLevel);
+  const modeOverlay = $("modeOverlay");
+  for (const btn of document.querySelectorAll(".mode-btn")) btn.addEventListener("click", () => {
+    const chosen = btn.dataset.mode;
+    modeOverlay.classList.remove("show");
+    if (chosen !== mode || startedAt) { mode = chosen; restartLevel(); } else { mode = chosen; updateHud(); }
+    try { localStorage.setItem("runway-mode", mode); } catch (e) {}
+  });
+  $("modeBtn").addEventListener("click", () => { if (!over) modeOverlay.classList.add("show"); });
   $("newBtn").addEventListener("click", startLevel);
   $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
 
