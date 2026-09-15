@@ -333,7 +333,7 @@
       </button>
       <button class="icon-btn hint-btn" id="hintBtn" title="Hint" aria-label="Hint">
         <svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/></svg>
-        <span class="price" id="hintPrice">$10</span>
+        <span class="price" id="hintPrice">$5</span>
       </button>
     </div>
   </div>
@@ -746,7 +746,7 @@
   } catch (e) {}
   const money = (n) => n.toLocaleString("en-US");
   // Hints are paid for out of the winnings, and each one in a level costs more than the last.
-  const HINT_PRICES = [10, 25, 50, 100, 200, 400];
+  const HINT_PRICES = [5, 10, 20, 40, 80, 160];
   let hintsUsed = 0;
   const hintPrice = () => HINT_PRICES[Math.min(hintsUsed, HINT_PRICES.length - 1)];
   function updateHintBtn() {
@@ -883,16 +883,26 @@
   }
 
   // Slide the path's window along its track from `from` to `to` cells, then call done.
+  // Animation frames stop entirely while the page is hidden (another app or tab in front),
+  // so a timer guarantees every slide lands on its final position and reports done.
   function slide(s, track, from, to, ms, ease, onFrame, done) {
     const g = els[s.id], t0 = performance.now(), dur = reduced ? Math.min(ms, 80) : ms;
-    const frame = (now) => {
-      const t = document.hidden ? 1 : Math.min(1, (now - t0) / dur);
+    let finished = false;
+    const step = (t) => {
       const off = from + (to - from) * ease(t);
       drawSnake(g, windowPts(track, off, s.cells.length), s.d);
       if (onFrame) onFrame(off);
-      if (t < 1) requestAnimationFrame(frame); else done();
+    };
+    const finish = () => { if (finished) return; finished = true; step(1); done(); };
+    const frame = (now) => {
+      if (finished) return;
+      const t = document.hidden ? 1 : Math.min(1, (now - t0) / dur);
+      if (t >= 1) return finish();
+      step(t);
+      requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
+    setTimeout(finish, dur + 60);
   }
   const easeIn = (t) => t * t, easeOut = (t) => 1 - (1 - t) * (1 - t), linear = (t) => t;
 
@@ -912,7 +922,7 @@
     const end = exitAt + s.cells.length + PAD;     // tail has left too
     slide(s, track, 0, end, (end / SPEED) * 1000, linear,
       (off) => { g.style.opacity = off <= exitAt ? 1 : Math.max(0, 1 - (off - exitAt) / (end - exitAt)); },
-      () => { g.remove(); animating.delete(id); if (remaining === 0) finish(true); });
+      () => { g.remove(); animating.delete(id); if (remaining === 0 && !over) finish(true); });
     releaseArmed();
   }
 
