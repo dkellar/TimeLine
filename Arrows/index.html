@@ -121,6 +121,7 @@
   .life { width: 38px; height: 38px; fill: none; stroke: var(--life); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; transition: stroke 240ms ease, transform 240ms ease, opacity 240ms ease; }
   .life .string { stroke-width: 1.4; }
   .life.empty { stroke: var(--life-empty); transform: scale(0.85) rotate(-12deg); opacity: 0.8; }
+  .counts { display: flex; gap: 14px; align-items: baseline; }
   .status .count {
     font-weight: 800;
     color: var(--muted);
@@ -129,6 +130,13 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
+  .status .count.best { color: var(--accent); }
+  .status .count.bank { color: #2F9E44; }
+  .status .count.bank.paid { animation: payout 700ms ease; }
+  @keyframes payout { 30% { transform: scale(1.18); } }
+  .card .score { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 8vw, 44px); color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; }
+  .card .score small { display: block; font-family: var(--body); font-weight: 800; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+  .card .newbest { color: var(--accent); font-weight: 800; }
 
   /* Radio banner: station red on the left, play state in the text. */
   .radio {
@@ -280,6 +288,8 @@
     .icon-btn { width: 36px; height: 36px; }
     .icon-btn svg { width: 20px; height: 20px; }
     .status { padding: 8px 0 0; }
+    .counts { gap: 10px; }
+    .status .count { font-size: 12px; }
     .lives { gap: 6px; }
     .life { width: 30px; height: 30px; }
     .stage { padding: 6px 0; }
@@ -294,6 +304,7 @@
     .app { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr; column-gap: 12px; }
     .topbar { grid-column: 1 / -1; padding: 6px 0; }
     .status { grid-column: 2; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 10px; padding: 8px 0 0; }
+    .counts { flex-direction: column; align-items: flex-end; gap: 4px; }
     .stage { grid-column: 1; grid-row: 2 / 5; padding: 4px 0; }
     .radio { grid-column: 2; margin-top: 0; }
     .footer { grid-column: 2; flex-direction: column; align-items: stretch; align-self: end; }
@@ -321,7 +332,12 @@
 
   <div class="status">
     <div class="lives" id="lives" aria-label="Bows remaining"></div>
-    <div class="count"><span id="left">0</span> left</div>
+    <div class="counts">
+      <span class="count"><span id="left">0</span> left</span>
+      <span class="count"><span id="clock">0:00</span></span>
+      <span class="count best">Best <span id="best">0</span></span>
+      <span class="count bank" id="bankWrap" title="Your winnings — every cleared level pays out its score">$<span id="bank">0</span></span>
+    </div>
   </div>
 
   <div class="radio" id="radio" data-state="off">
@@ -342,6 +358,7 @@
     <div class="overlay" id="overlay">
       <div class="card">
         <h2 id="cardTitle">Level cleared</h2>
+        <div class="score" id="cardScore" hidden></div>
         <p id="cardText"></p>
         <button class="btn" id="cardBtn">Next level</button>
       </div>
@@ -693,6 +710,28 @@
   let drops = MAX_DROPS, remaining = 0, over = false;
   const animating = new Set();
   const armed = new Set(); // paths that collided; they leave on their own once clear
+  let startedAt = 0, clockTimer = 0; // the clock runs from the first tap to the last path leaving
+  let best = null;                   // { score, level, arrows, seconds }
+  let bank = 0;                      // winnings: every cleared level pays its score in dollars
+  try {
+    best = JSON.parse(localStorage.getItem("runway-best")) || null;
+    bank = parseInt(localStorage.getItem("runway-bank"), 10) || 0;
+  } catch (e) {}
+  const money = (n) => n.toLocaleString("en-US");
+
+  // Score: pace — arrows cleared per second, scaled — plus a difficulty bonus for the
+  // number of arrows the puzzle had. Faster clears and bigger boards both score higher.
+  // Each bow lost along the way takes 15% off the total.
+  const BUMP_PENALTY = 0.15;
+  const scoreFor = (arrows, seconds, bumps) => Math.round(((arrows / Math.max(seconds, 1)) * 100 + arrows * 2) * (1 - BUMP_PENALTY * bumps));
+  const fmtTime = (sec) => Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
+  const elapsed = () => (startedAt ? (performance.now() - startedAt) / 1000 : 0);
+  function startClock() {
+    if (startedAt) return;
+    startedAt = performance.now();
+    clockTimer = setInterval(() => { $("clock").textContent = fmtTime(elapsed()); }, 250);
+  }
+  function stopClock() { clearInterval(clockTimer); clockTimer = 0; }
 
   function setup(p) {
     puzzle = p;
@@ -701,6 +740,7 @@
     for (const s of p.snakes) for (const [r, c] of s.cells) occ[r][c] = s.id;
     drops = MAX_DROPS; remaining = p.snakes.length; over = false;
     animating.clear(); armed.clear();
+    stopClock(); startedAt = 0; $("clock").textContent = "0:00";
     overlay.classList.remove("show");
     render();
     updateHud();
@@ -754,6 +794,9 @@
   function updateHud() {
     $("title").textContent = "Level " + level;
     $("left").textContent = remaining;
+    $("best").textContent = best ? best.score : 0;
+    $("bank").textContent = money(bank);
+    $("best").title = best ? `Level ${best.level}: ${best.arrows} arrows in ${fmtTime(best.seconds)}` : "";
     document.documentElement.dataset.lost = MAX_DROPS - drops;
     const wrap = $("lives");
     wrap.innerHTML = "";
@@ -852,6 +895,7 @@
   function tap(id) {
     const s = puzzle.snakes[id];
     if (over || !alive[id] || animating.has(id)) return;
+    startClock();
     const g = els[id];
     const { clear, free, blocker } = scan(s);
 
@@ -885,11 +929,28 @@
 
   function finish(won) {
     over = true;
+    stopClock();
     if (won) winTune(); else loseTune();
     $("cardTitle").textContent = won ? `Level ${level} cleared` : "Out of bows";
-    $("cardText").textContent = won
-      ? (drops === MAX_DROPS ? "Not a single bump." : `${MAX_DROPS - drops} ${MAX_DROPS - drops === 1 ? "bump" : "bumps"} along the way.`)
-      : `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
+    const scoreEl = $("cardScore");
+    scoreEl.hidden = !won;
+    if (won) {
+      const bumps = MAX_DROPS - drops;
+      const arrows = puzzle.snakes.length, seconds = elapsed(), score = scoreFor(arrows, seconds, bumps);
+      const isBest = !best || score > best.score;
+      if (isBest) {
+        best = { score, level, arrows, seconds: Math.round(seconds) };
+        try { localStorage.setItem("runway-best", JSON.stringify(best)); } catch (e) {}
+      }
+      bank += score;
+      try { localStorage.setItem("runway-bank", String(bank)); } catch (e) {}
+      scoreEl.innerHTML = `+$${money(score)}<small>${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}you have $${money(bank)}</small>`;
+      updateHud();
+      const bw = $("bankWrap"); bw.classList.remove("paid"); void bw.offsetWidth; bw.classList.add("paid");
+      $("cardText").textContent = `${arrows} arrows in ${fmtTime(seconds)}` + (bumps ? ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} (−${Math.round(BUMP_PENALTY * bumps * 100)}%)` : " · no bumps");
+    } else {
+      $("cardText").textContent = `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
+    }
     $("cardBtn").textContent = won ? "Next level" : "Try again";
     $("cardBtn").onclick = won ? () => { level++; startLevel(); } : restartLevel;
     overlay.classList.add("show");
