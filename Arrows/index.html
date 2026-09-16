@@ -268,7 +268,7 @@
     display: block;
     touch-action: manipulation;
   }
-  .snake { cursor: pointer; }
+  svg.board { cursor: pointer; }
   .snake .hit { fill: none; stroke: transparent; stroke-width: 7; pointer-events: stroke; stroke-linecap: round; stroke-linejoin: round; }
   .snake .line, .snake .head {
     fill: none;
@@ -969,7 +969,6 @@
         g.appendChild(p);
       }
       drawSnake(g, s.cells.map(toPt), s.d);
-      g.addEventListener("click", () => tap(s.id));
       g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tap(s.id); } });
       board.appendChild(g);
       els[s.id] = g;
@@ -1003,7 +1002,7 @@
     $("stake").hidden = mode !== "risk";
     if (mode === "risk") $("stakeCost").textContent = "−" + money(bumpCost(riskBumps));
     $("best").title = best ? `Level ${best.level}: ${best.arrows} arrows in ${fmtTime(best.seconds)}` : "";
-    document.documentElement.dataset.lost = MAX_DROPS - drops;
+    document.documentElement.dataset.lost = Math.min(3, Math.max(0, MAX_DROPS - drops));
     const wrap = $("lives");
     wrap.innerHTML = "";
     for (let i = 0; i < MAX_DROPS; i++) {
@@ -1113,6 +1112,42 @@
     }
   }
 
+  // Taps are resolved by distance, not by the browser's hit-testing. Arrows sit a cell
+  // apart, so their tap zones overlap, and the browser would hand an overlap to whichever
+  // arrow was drawn later — occasionally making the one you need almost untappable.
+  // Instead: the arrow whose line (or arrowhead) is nearest the tap gets it.
+  const distToSegment = (px, py, ax, ay, bx, by) => {
+    const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2)) : 0;
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  };
+  function nearestPath(x, y) {
+    let best = -1, bestD = 0.75 * U;
+    for (const s of puzzle.snakes) {
+      if (!alive[s.id]) continue;
+      const pts = s.cells.map(toPt);
+      const [hx, hy] = pts[pts.length - 1], [dr, dc] = DIRS[s.d];
+      pts.push([hx + dc * 0.45 * U, hy + dr * 0.45 * U]); // include the arrowhead
+      for (let i = 0; i < pts.length - 1; i++) {
+        const d = distToSegment(x, y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+        if (d < bestD) { bestD = d; best = s.id; }
+      }
+      if (pts.length === 2) { // a lone cell is easy to miss; take the whole cell
+        const d = Math.hypot(x - hx, y - hy);
+        if (d < 0.6 * U && d < bestD + 0.2 * U) { bestD = Math.min(bestD, d); best = s.id; }
+      }
+    }
+    return best;
+  }
+  board.addEventListener("click", (e) => {
+    if (!puzzle || over) return;
+    const pt = board.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    const m = board.getScreenCTM(); if (!m) return;
+    const p = pt.matrixTransform(m.inverse());
+    const id = nearestPath(p.x, p.y);
+    if (id >= 0) tap(id);
+  });
+
   function tap(id) {
     const s = puzzle.snakes[id];
     if (over || !alive[id] || busy(id)) return;
@@ -1135,6 +1170,11 @@
       } else {
         drops--;
       }
+      // The moment the last bow (or the last point) goes, the game is over — lock out further
+      // taps now, and show the card once this bump has played out. Otherwise a quick second
+      // tap during the recoil could push the count below zero and the level would never end.
+      const busted = mode === "risk" ? livePoints() < 0 : drops <= 0;
+      if (busted) over = true;
       updateHud();
       armed.add(id);
       g.classList.add("armed");
@@ -1150,7 +1190,6 @@
         slide(s, track, reach, 0, 260, easeOut, null, () => {
           if (myGen !== gen) return;
           animating.delete(id);
-          const busted = mode === "risk" ? livePoints() < 0 : drops === 0;
           if (busted) finish(false); else releaseArmed();
         });
       });
