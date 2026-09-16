@@ -139,7 +139,8 @@
   .mode-name { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--accent); }
   .mode-btn.risk .mode-name { color: #B8382A; }
   .mode-desc { font-size: 13px; font-weight: 700; color: var(--muted); line-height: 1.35; }
-  .card.modes .reset { margin-top: 6px; color: var(--muted); }
+  .resets { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+  .card.modes .reset { color: var(--muted); }
   .card.modes .reset.confirm { color: #fff; background: #B8382A; border-color: #B8382A; }
   .reset-note { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); min-height: 1.2em; }
   .icon-btn {
@@ -454,8 +455,11 @@
           <span class="mode-name">High stakes</span>
           <span class="mode-desc">No bows. Every bump costs points — and the cost doubles each time. Drop below zero and you're out, and the shortfall comes out of your wallet. Yes, you can owe money.</span>
         </button>
-        <button class="btn quiet reset" id="resetBtn">Reset score</button>
-        <p class="reset-note" id="resetNote">Zeroes your money and best score. Tap again to confirm.</p>
+        <div class="resets">
+          <button class="btn quiet reset" id="resetBtn">Reset score</button>
+          <button class="btn quiet reset" id="resetLevelBtn">Back to level 1</button>
+        </div>
+        <p class="reset-note" id="resetNote">Tap either twice to confirm.</p>
       </div>
     </div>
     <div class="overlay" id="overlay">
@@ -1348,22 +1352,33 @@
   });
   $("modeBtn").addEventListener("click", () => { if (!over) modeOverlay.classList.add("show"); });
   // Reset takes two taps so a stray touch can't wipe the winnings.
-  const resetBtn = $("resetBtn"), resetNote = $("resetNote");
-  let resetArmed = 0;
-  resetBtn.addEventListener("click", () => {
-    if (!resetArmed) {
-      resetArmed = setTimeout(() => { resetArmed = 0; resetBtn.classList.remove("confirm"); resetBtn.textContent = "Reset score"; }, 4000);
-      resetBtn.classList.add("confirm"); resetBtn.textContent = `Really reset ${dollars(bank)}?`;
-      return;
-    }
-    clearTimeout(resetArmed); resetArmed = 0;
+  // Both resets take two taps so a stray touch can't fire them.
+  const resetNote = $("resetNote"), NOTE_DEFAULT = "Tap either twice to confirm.";
+  function twoTap(btn, label, confirmLabel, action, doneNote) {
+    let armed = 0;
+    const disarm = () => { clearTimeout(armed); armed = 0; btn.classList.remove("confirm"); btn.textContent = label; };
+    btn.addEventListener("click", () => {
+      if (!armed) {
+        btn.classList.add("confirm"); btn.textContent = confirmLabel();
+        armed = setTimeout(disarm, 4000);
+        return;
+      }
+      disarm();
+      action();
+      resetNote.textContent = doneNote;
+      setTimeout(() => { resetNote.textContent = NOTE_DEFAULT; }, 3000);
+    });
+  }
+  twoTap($("resetBtn"), "Reset score", () => `Really reset ${dollars(bank)}?`, () => {
     bank = 0; best = null;
     try { localStorage.setItem("runway-bank", "0"); localStorage.removeItem("runway-best"); } catch (e) {}
-    resetBtn.classList.remove("confirm"); resetBtn.textContent = "Reset score";
-    resetNote.textContent = "Money and best score are back to zero.";
-    setTimeout(() => { resetNote.textContent = "Zeroes your money and best score. Tap again to confirm."; }, 3000);
     updateHud();
-  });
+  }, "Money and best score are back to zero.");
+  twoTap($("resetLevelBtn"), "Back to level 1", () => `Leave level ${level} and start over?`, () => {
+    level = 1;
+    modeOverlay.classList.remove("show");
+    startLevel();
+  }, "Back at level 1 — small boards again.");
   $("newBtn").addEventListener("click", startLevel);
   $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
 
