@@ -104,6 +104,17 @@
   @keyframes pointsHit { 30% { transform: scale(1.2); color: #B8382A; } }
   .stake { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: color-mix(in srgb, #B8382A 14%, transparent); color: #B8382A; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; }
   .stake-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+  #howOverlay { background: color-mix(in srgb, var(--ground) 96%, transparent); }
+  .card.how { gap: 8px; width: min(100%, 440px); padding: 16px 20px; }
+  .card.how h2 { margin-bottom: 2px; }
+  .demo { width: 100%; max-width: 280px; height: auto; display: block; }
+  .demo .cell { fill: var(--rule); opacity: 0.5; }
+  .demo .snake .line, .demo .snake .head { stroke-width: 1.5; }
+  .demo .tap { fill: none; stroke: var(--accent); stroke-width: 1.2; opacity: 0; }
+  .demo .tap.go { animation: ripple 600ms ease-out; }
+  @keyframes ripple { 0% { opacity: 1; r: 1.5; } 100% { opacity: 0; r: 7; } }
+  .caption { margin: 0; font-weight: 800; font-size: 15px; color: var(--text); min-height: 2.6em; text-wrap: balance; }
+  .rules { margin: 0; padding: 0 0 0 18px; text-align: left; color: var(--muted); font-weight: 700; font-size: 13px; line-height: 1.5; }
   .card.modes { gap: 12px; width: min(100%, 420px); }
   .card.modes h2 { margin-bottom: 4px; }
   .mode-btn {
@@ -279,7 +290,8 @@
     position: absolute;
     inset: 0;
     display: grid;
-    place-items: center;
+    place-items: safe center;
+    overflow: auto;
     background: var(--overlay);
     opacity: 0;
     pointer-events: none;
@@ -370,6 +382,9 @@
     </div>
     <h1 id="title">Level 1</h1>
     <div class="right">
+      <button class="icon-btn" id="helpBtn" title="How to play" aria-label="How to play">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg>
+      </button>
       <button class="icon-btn" id="soundBtn" title="Sound" aria-label="Sound on" aria-pressed="true">
         <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"/><path class="mute" d="M16 9l5 6M21 9l-5 6"/></svg>
       </button>
@@ -406,7 +421,21 @@
 
   <div class="stage">
     <svg class="board" id="board" xmlns="http://www.w3.org/2000/svg"></svg>
-    <div class="overlay show" id="modeOverlay">
+    <div class="overlay" id="howOverlay">
+      <div class="card how">
+        <h2>How to play</h2>
+        <svg class="demo" id="demo" viewBox="0 0 70 50" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
+        <p class="caption" id="demoCaption">Tap an arrow and it slides off the board along its own path.</p>
+        <ul class="rules">
+          <li>Clear every arrow to finish the level.</li>
+          <li>Points tick down with the clock — and bumps cost you.</li>
+          <li>Stuck? A hint costs a little of your winnings.</li>
+        </ul>
+        <button class="btn" id="playBtn">Play</button>
+        <button class="btn quiet" id="chooseModeBtn">Choose a game mode</button>
+      </div>
+    </div>
+    <div class="overlay" id="modeOverlay">
       <div class="card modes">
         <h2>Choose your game</h2>
         <button class="mode-btn" data-mode="classic">
@@ -1119,6 +1148,85 @@
 
   $("hintBtn").addEventListener("click", hint);
   $("retryBtn").addEventListener("click", restartLevel);
+  // ---------- How to play (first visit, and the ? button) ----------
+  const howOverlay = $("howOverlay");
+  let seen = false;
+  try { seen = localStorage.getItem("runway-seen") === "yes"; } catch (e) {}
+  let demoTimers = [];
+  const later = (ms, fn) => demoTimers.push(setTimeout(fn, ms));
+  // A tiny board that plays itself: A slides off; B bumps into C and turns orange; C leaves;
+  // then B goes on its own. Same drawing code as the real board.
+  function runDemo() {
+    for (const t of demoTimers) clearTimeout(t);
+    demoTimers = [];
+    const svg = $("demo"), NS = svg.namespaceURI, DU = 10, DP = 1;
+    const dcx = (c) => (c + DP + 0.5) * DU, dcy = (r) => (r + DP + 0.5) * DU;
+    const pt = ([r, c]) => [dcx(c), dcy(r)];
+    svg.innerHTML = "";
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) {
+      const cell = document.createElementNS(NS, "rect");
+      cell.setAttribute("class", "cell"); cell.setAttribute("rx", 1.5);
+      cell.setAttribute("x", dcx(c) - 4.4); cell.setAttribute("y", dcy(r) - 4.4); cell.setAttribute("width", 8.8); cell.setAttribute("height", 8.8);
+      svg.appendChild(cell);
+    }
+    const paths = {
+      A: { cells: [[0, 0], [0, 1], [0, 2]], d: 1 },
+      B: { cells: [[1, 0], [1, 1], [1, 2]], d: 1 },
+      C: { cells: [[2, 3], [1, 3]], d: 0 },
+    };
+    const gs = {};
+    for (const k in paths) {
+      const g = document.createElementNS(NS, "g"); g.setAttribute("class", "snake");
+      for (const cls of ["line", "head"]) { const p = document.createElementNS(NS, "path"); p.setAttribute("class", cls); g.appendChild(p); }
+      // the shared drawer expects a .hit path too
+      const hit = document.createElementNS(NS, "path"); hit.setAttribute("class", "hit"); g.prepend(hit);
+      drawSnake(g, paths[k].cells.map(pt), paths[k].d);
+      svg.appendChild(g); gs[k] = g;
+    }
+    const tap = document.createElementNS(NS, "circle"); tap.setAttribute("class", "tap"); svg.appendChild(tap);
+    const ripple = (cell) => { const [x, y] = pt(cell); tap.setAttribute("cx", x); tap.setAttribute("cy", y); tap.classList.remove("go"); void tap.getBBox(); tap.classList.add("go"); };
+    const trackFor = (p, extra) => { const t = p.cells.map(pt); let [r, c] = p.cells[p.cells.length - 1]; for (let i = 0; i < extra; i++) { r += DIRS[p.d][0]; c += DIRS[p.d][1]; t.push(pt([r, c])); } return t; };
+    const move = (k, from, to, ms, ease, fade, done) => {
+      const p = paths[k], g = gs[k], track = trackFor(p, 12), t0 = performance.now();
+      const frame = (now) => {
+        const t = Math.min(1, (now - t0) / ms), off = from + (to - from) * ease(t);
+        drawSnake(g, windowPts(track, off, p.cells.length), p.d);
+        if (fade) g.style.opacity = Math.max(0, 1 - Math.max(0, off - fade) / 3);
+        if (t < 1 && howOverlay.classList.contains("show")) requestAnimationFrame(frame); else if (done) done();
+      };
+      requestAnimationFrame(frame);
+    };
+    const say = (text) => { $("demoCaption").textContent = text; };
+    say("Tap an arrow and it slides off the board along its own path.");
+    later(700, () => { ripple([0, 2]); later(150, () => move("A", 0, 8, 700, linear, 3)); });
+    later(2300, () => {
+      say("Blocked? It bumps back and turns orange.");
+      ripple([1, 2]);
+      later(150, () => move("B", 0, 0.35, 120, easeIn, 0, () => {
+        gs.C.style.setProperty("--jx", "1.4px"); gs.C.style.setProperty("--jy", "0px");
+        gs.C.classList.remove("hit-shake"); void gs.C.getBBox(); gs.C.classList.add("hit-shake");
+        gs.B.classList.add("armed");
+        move("B", 0.35, 0, 240, easeOut, 0);
+      }));
+    });
+    later(4300, () => {
+      say("Clear what's in its way and the orange arrow leaves on its own.");
+      ripple([1, 3]);
+      later(150, () => move("C", 0, 6, 600, linear, 2, () => later(200, () => move("B", 0, 8, 700, linear, 3))));
+    });
+    later(7200, runDemo); // loop
+  }
+  function showHow() { howOverlay.classList.add("show"); runDemo(); }
+  function hideHow() {
+    howOverlay.classList.remove("show");
+    for (const t of demoTimers) clearTimeout(t);
+    demoTimers = [];
+    try { localStorage.setItem("runway-seen", "yes"); } catch (e) {}
+  }
+  $("helpBtn").addEventListener("click", showHow);
+  $("playBtn").addEventListener("click", hideHow);
+  $("chooseModeBtn").addEventListener("click", () => { hideHow(); modeOverlay.classList.add("show"); });
+
   const modeOverlay = $("modeOverlay");
   for (const btn of document.querySelectorAll(".mode-btn")) btn.addEventListener("click", () => {
     const chosen = btn.dataset.mode;
@@ -1148,5 +1256,6 @@
   $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
 
   startLevel();
+  if (!seen) showHow();
 })();
 </script>
