@@ -225,13 +225,15 @@
   .radio[data-state="playing"] .radio-btn .pause, .radio[data-state="loading"] .radio-btn .pause { display: block; }
   .radio-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .radio-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
-  .radio-name { font-family: var(--display); font-weight: 700; font-size: 15px; color: #9E1616; }
+  .radio-name { font-family: var(--display); font-weight: 700; font-size: 15px; color: #9E1616; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .radio-text { height: 36px; justify-content: center; }
   :root[data-theme="dark"] .radio-name { color: #F08A8A; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio-name { color: #F08A8A; } }
   .radio-sub { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .radio-sub .track::before { content: "♪ "; }
   .radio-status { font-style: normal; font-family: var(--body); font-weight: 800; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
   .radio-art { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex: none; background: var(--rule); }
+  .radio { min-height: 52px; }
   .radio-link {
     flex: none;
     display: inline-flex; align-items: center; gap: 4px;
@@ -263,12 +265,19 @@
     position: relative;
     padding: 10px 0;
   }
+  /* Absolutely placed in its slot: Safari can mis-size a percentage-height SVG in a flex
+     or grid box, which would let the top rows slide under the banner. The board also opts
+     out of scroll/zoom gesture detection so a tap can't be mistaken for a scroll. */
   svg.board {
+    position: absolute;
+    inset: 10px 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - 20px);
     display: block;
-    touch-action: manipulation;
+    touch-action: none;
+    -webkit-touch-callout: none;
   }
+  @media (max-width: 600px) { svg.board { inset: 6px 0; height: calc(100% - 12px); } }
   svg.board { cursor: pointer; }
   .snake .hit { fill: none; stroke: transparent; stroke-width: 7; pointer-events: stroke; stroke-linecap: round; stroke-linejoin: round; }
   .snake .line, .snake .head {
@@ -358,8 +367,12 @@
     .lives { gap: 6px; }
     .life { width: 30px; height: 30px; }
     .stage { padding: 6px 0; }
-    .radio { margin-top: 6px; padding: 4px 8px 4px 4px; gap: 8px; }
+    .radio { margin-top: 6px; padding: 4px 8px 4px 4px; gap: 8px; min-height: 44px; }
     .radio-btn { width: 32px; height: 32px; }
+    .radio-art { width: 32px; height: 32px; }
+    .radio-text { height: 32px; }
+    .radio-name { font-size: 14px; }
+    .radio-status { font-size: 10px; margin-left: 4px; }
     .radio-link { padding: 4px 8px; font-size: 12px; }
     .btn.quiet { padding: 7px 12px; font-size: 13px; }
     .card { padding: 16px; }
@@ -862,9 +875,11 @@
   }
   metaConnect();
 
-  // Any tap in the game starts the station whenever it's wanted but not running.
+  // Any tap in the game starts the station whenever it's wanted but not running. This runs
+  // on click — after the tap has been delivered to the board — never on pointer-down: a
+  // banner change mid-tap would shift the board under the finger and iOS would drop the tap.
   radioPlay();
-  document.addEventListener("pointerdown", (e) => {
+  document.addEventListener("click", (e) => {
     if (radio.contains(e.target)) return; // the banner's own controls decide for themselves
     if (radioWanted && radio.dataset.state === "off") radioPlay();
   });
@@ -1144,8 +1159,16 @@
     }
     return best;
   }
-  board.addEventListener("click", (e) => {
-    if (!puzzle || over) return;
+  // Taps come straight from pointer events (finger down, then up close by and soon after),
+  // not the browser's synthesised click — Safari drops clicks it half-suspects were scrolls.
+  let press = null;
+  board.addEventListener("pointerdown", (e) => { if (e.isPrimary) press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }; });
+  board.addEventListener("pointercancel", () => { press = null; });
+  board.addEventListener("pointerup", (e) => {
+    if (!press || e.pointerId !== press.id) return;
+    const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y), held = performance.now() - press.t;
+    press = null;
+    if (moved > 12 || held > 600 || !puzzle || over) return;
     const pt = board.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const m = board.getScreenCTM(); if (!m) return;
     const p = pt.matrixTransform(m.inverse());
