@@ -185,11 +185,15 @@
   }
   .status .count.best { color: var(--accent); }
   .status .count.bank { color: #2F9E44; }
+  .status .count.bank.debt { color: #B8382A; }
   .status .count.bank.paid { animation: payout 700ms ease; }
   @keyframes payout { 30% { transform: scale(1.18); } }
   .card .score { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 8vw, 44px); color: var(--text); line-height: 1; font-variant-numeric: tabular-nums; }
   .card .score small { display: block; font-family: var(--body); font-weight: 800; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
   .card .newbest { color: var(--accent); font-weight: 800; }
+  .card .bonus { color: #9E1616; font-weight: 800; }
+  :root[data-theme="dark"] .card .bonus { color: #F08A8A; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .card .bonus { color: #F08A8A; } }
 
   /* Radio banner: station red on the left, play state in the text. */
   .radio {
@@ -224,7 +228,9 @@
   :root[data-theme="dark"] .radio-name { color: #F08A8A; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio-name { color: #F08A8A; } }
   .radio-sub { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .radio-sub em { font-style: normal; }
+  .radio-sub .track::before { content: "♪ "; }
+  .radio-status { font-style: normal; font-family: var(--body); font-weight: 800; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); margin-left: 6px; }
+  .radio-art { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; flex: none; background: var(--rule); }
   .radio-link {
     flex: none;
     display: inline-flex; align-items: center; gap: 4px;
@@ -240,8 +246,8 @@
   .radio-link svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   :root[data-theme="dark"] .radio-link { color: #F08A8A; border-color: color-mix(in srgb, #F08A8A 40%, transparent); }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio-link { color: #F08A8A; border-color: color-mix(in srgb, #F08A8A 40%, transparent); } }
-  .radio[data-state="playing"] .radio-sub em { color: #2F9E44; }
-  .radio[data-state="error"] .radio-sub em { color: #B8382A; }
+  .radio[data-state="playing"] .radio-status { color: #2F9E44; }
+  .radio[data-state="error"] .radio-status { color: #B8382A; }
   .radio[data-state="playing"] .radio-name::before {
     content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9E1616; margin-right: 6px; vertical-align: middle;
     animation: onair 1.2s ease-in-out infinite;
@@ -402,7 +408,7 @@
       <span class="count"><span id="left">0</span> left</span>
       <span class="count"><span id="clock">0:00</span></span>
       <span class="count best">Best <span id="best">0</span></span>
-      <span class="count bank" id="bankWrap" title="Your winnings — every cleared level pays out its score">$<span id="bank">0</span></span>
+      <span class="count bank" id="bankWrap" title="Your money — cleared levels pay out, hints and going bust cost you"><span id="bank">$0</span></span>
     </div>
   </div>
 
@@ -411,9 +417,10 @@
       <svg viewBox="0 0 24 24" class="play"><path d="M7 4l13 8-13 8z"/></svg>
       <svg viewBox="0 0 24 24" class="pause"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
     </button>
+    <img class="radio-art" id="radioArt" alt="" hidden>
     <div class="radio-text">
-      <span class="radio-name">CHIR-FM 107.9</span>
-      <span class="radio-sub">Gulf Islands Community Radio · <em id="radioState">Off</em></span>
+      <span class="radio-name">CHIR-FM 107.9 <em class="radio-status" id="radioState">Off</em></span>
+      <span class="radio-sub" id="radioNow">Gulf Islands Community Radio</span>
     </div>
     <a class="radio-link" href="https://www.chir.fm/" target="_blank" rel="noopener" aria-label="Open chir.fm in a new tab">chir.fm <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
     <audio id="radioAudio" preload="none" src="https://stream.aiir.com/iirwxwmjurkuv"></audio>
@@ -430,6 +437,7 @@
           <li>Clear every arrow to finish the level.</li>
           <li>Points tick down with the clock — and bumps cost you.</li>
           <li>Stuck? A hint costs a little of your winnings.</li>
+          <li>Keep CHIR-FM playing and every level you clear pays a 10% listener bonus.</li>
         </ul>
         <button class="btn" id="playBtn">Play</button>
         <button class="btn quiet" id="chooseModeBtn">Choose a game mode</button>
@@ -444,7 +452,7 @@
         </button>
         <button class="mode-btn risk" data-mode="risk">
           <span class="mode-name">High stakes</span>
-          <span class="mode-desc">No bows. Every bump costs points — and the cost doubles each time. Drop below zero and you're out.</span>
+          <span class="mode-desc">No bows. Every bump costs points — and the cost doubles each time. Drop below zero and you're out, and the shortfall comes out of your wallet. Yes, you can owe money.</span>
         </button>
         <button class="btn quiet reset" id="resetBtn">Reset score</button>
         <p class="reset-note" id="resetNote">Zeroes your money and best score. Tap again to confirm.</p>
@@ -809,6 +817,47 @@
     radioWanted = !on;
     if (on) radioStop(); else radioPlay();
   });
+  // What's on: the station's live metadata feed — the show on air, and the track when the
+  // studio pushes one. Connected while the page is open; reconnects on its own.
+  const CHIR_SERVICE = "5852";
+  let meta = null, metaBeat = 0, metaRetry = 1000;
+  function metaConnect() {
+    if (meta || !("WebSocket" in window)) return;
+    try { meta = new WebSocket("wss://metadata.aiir.net/now-playing"); } catch (e) { meta = null; return; }
+    meta.onopen = () => {
+      metaRetry = 1000;
+      meta.send(JSON.stringify({ action: "subscribe", serviceId: CHIR_SERVICE }));
+      clearInterval(metaBeat);
+      metaBeat = setInterval(() => { if (meta && meta.readyState === 1) meta.send(JSON.stringify({ action: "heartbeat" })); }, 240000);
+    };
+    meta.onmessage = (e) => { try { showNowPlaying(JSON.parse(e.data)); } catch (err) {} };
+    meta.onclose = () => { meta = null; clearInterval(metaBeat); setTimeout(metaConnect, metaRetry); metaRetry = Math.min(metaRetry * 2, 60000); };
+    meta.onerror = () => { try { meta.close(); } catch (e) {} };
+  }
+  function showNowPlaying(m) {
+    if (!m || m.serviceId !== CHIR_SERVICE) return;
+    const now = m.nowPlaying || {}, show = m.nowProgramme || {};
+    const nowEl = $("radioNow"), art = $("radioArt");
+    nowEl.innerHTML = "";
+    if (now.type === "track" && (now.title || now.artist)) {
+      const t = document.createElement("span"); t.className = "track";
+      t.textContent = [now.title, now.artist].filter(Boolean).join(" — ");
+      nowEl.appendChild(t);
+      if (show.name) nowEl.appendChild(document.createTextNode(" · " + show.name));
+      nowEl.title = show.name ? `On air: ${show.name}` : "";
+    } else if (show.name || now.name) {
+      nowEl.textContent = "On air: " + (show.name || now.name);
+      nowEl.title = show.description || "";
+    } else {
+      nowEl.textContent = "Gulf Islands Community Radio";
+      nowEl.title = "";
+    }
+    const img = now.imageUrl || show.imageUrl;
+    if (img && img !== art.dataset.src) { art.dataset.src = img; art.hidden = true; art.onload = () => { art.hidden = false; }; art.onerror = () => { art.hidden = true; }; art.src = img; }
+    else if (!img) { art.hidden = true; art.removeAttribute("src"); delete art.dataset.src; }
+  }
+  metaConnect();
+
   // Any tap in the game starts the station whenever it's wanted but not running.
   radioPlay();
   document.addEventListener("pointerdown", (e) => {
@@ -835,7 +884,9 @@
     best = JSON.parse(localStorage.getItem("runway-best")) || null;
     bank = parseInt(localStorage.getItem("runway-bank"), 10) || 0;
   } catch (e) {}
-  const money = (n) => n.toLocaleString("en-US");
+  const money = (n) => Math.abs(n).toLocaleString("en-US");
+  const dollars = (n) => (n < 0 ? "−$" : "$") + money(n); // debt shows as −$123
+  const saveBank = () => { try { localStorage.setItem("runway-bank", String(bank)); } catch (e) {} };
   // Hints are paid for out of the winnings, and each one in a level costs more than the last.
   const HINT_PRICES = [5, 10, 20, 40, 80, 160];
   let hintsUsed = 0;
@@ -843,8 +894,8 @@
   function updateHintBtn() {
     const price = hintPrice(), btn = $("hintBtn");
     $("hintPrice").textContent = "$" + money(price);
-    btn.disabled = bank < price || over;
-    btn.title = bank < price ? `Hint costs $${money(price)} — you have $${money(bank)}` : `Hint — $${money(price)}`;
+    btn.disabled = over;
+    btn.title = `Hint — $${money(price)}` + (bank < price ? " (on credit)" : "");
   }
 
   // Points run live and tick down from the first second. Each arrow starts worth 20, is
@@ -855,6 +906,7 @@
   //   High stakes: each bump deducts points on the spot, doubling every time; under zero
   //                ends the level.
   const BUMP_PENALTY = 0.15;
+  const LISTEN_BONUS = 0.10; // extra paid on a clear while CHIR is playing
   let mode = "classic";
   try { mode = localStorage.getItem("runway-mode") === "risk" ? "risk" : "classic"; } catch (e) {}
   let riskBumps = 0, riskPenalty = 0;
@@ -943,7 +995,8 @@
     $("title").textContent = "Level " + level;
     $("left").textContent = remaining;
     $("best").textContent = best ? best.score : 0;
-    $("bank").textContent = money(bank);
+    $("bank").textContent = dollars(bank);
+    $("bankWrap").classList.toggle("debt", bank < 0);
     updateHintBtn();
     showPoints();
     $("lives").hidden = mode === "risk";
@@ -1122,19 +1175,29 @@
         best = { score, level, arrows, seconds: Math.round(seconds) };
         try { localStorage.setItem("runway-best", JSON.stringify(best)); } catch (e) {}
       }
-      bank += score;
-      try { localStorage.setItem("runway-bank", String(bank)); } catch (e) {}
-      scoreEl.innerHTML = `+$${money(score)}<small>${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}you have $${money(bank)}</small>`;
+      // Listener bonus: clear a level with CHIR playing and the station tips you 10% extra.
+      const listening = radio.dataset.state === "playing";
+      const bonus = listening ? Math.max(10, Math.round(score * LISTEN_BONUS)) : 0;
+      bank += score + bonus;
+      saveBank();
+      scoreEl.innerHTML = `+$${money(score)}<small>${bonus ? `<span class="bonus">+$${money(bonus)} CHIR listener bonus</span> · ` : ""}${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}${bank < 0 ? "you owe " + dollars(-bank) : "you have " + dollars(bank)}</small>`;
       updateHud();
       const bw = $("bankWrap"); bw.classList.remove("paid"); void bw.offsetWidth; bw.classList.add("paid");
       const bumpNote = !bumps ? " · no bumps"
         : mode === "risk" ? ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} cost ${money(riskPenalty)}`
         : ` · ${bumps} ${bumps === 1 ? "bump" : "bumps"} (−${Math.round(BUMP_PENALTY * bumps * 100)}%)`;
       $("cardText").textContent = `${arrows} arrows in ${fmtTime(seconds)}` + bumpNote;
+    } else if (mode === "risk") {
+      // Going bust is charged to the wallet: the shortfall becomes debt.
+      const shortfall = -livePoints();
+      bank -= shortfall;
+      saveBank();
+      updateHud();
+      scoreEl.hidden = false;
+      scoreEl.innerHTML = `−$${money(shortfall)}<small>${bank < 0 ? "you owe " + dollars(-bank) : "you have " + dollars(bank)}</small>`;
+      $("cardText").textContent = `${riskBumps} bumps cost ${money(riskPenalty)} points. The counter went ${money(shortfall)} below zero, and that comes out of your wallet.`;
     } else {
-      $("cardText").textContent = mode === "risk"
-        ? `${riskBumps} bumps cost ${money(riskPenalty)} points — the counter went below zero.`
-        : `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
+      $("cardText").textContent = `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
     }
     $("cardBtn").textContent = won ? "Next level" : "Try again";
     $("cardBtn").onclick = won ? () => { level++; startLevel(); } : restartLevel;
@@ -1145,11 +1208,10 @@
   function hint() {
     if (over) return;
     const price = hintPrice();
-    if (bank < price) { updateHintBtn(); return; }
     const clear = puzzle.snakes.filter((s) => alive[s.id] && !busy(s.id) && scan(s).clear);
     if (!clear.length) return;
     bank -= price; hintsUsed++;
-    try { localStorage.setItem("runway-bank", String(bank)); } catch (e) {}
+    saveBank();
     updateHud();
     const g = els[clear[rand(clear.length)].id];
     g.classList.remove("hint"); void g.getBBox(); g.classList.add("hint");
@@ -1251,7 +1313,7 @@
   resetBtn.addEventListener("click", () => {
     if (!resetArmed) {
       resetArmed = setTimeout(() => { resetArmed = 0; resetBtn.classList.remove("confirm"); resetBtn.textContent = "Reset score"; }, 4000);
-      resetBtn.classList.add("confirm"); resetBtn.textContent = `Really reset $${money(bank)}?`;
+      resetBtn.classList.add("confirm"); resetBtn.textContent = `Really reset ${dollars(bank)}?`;
       return;
     }
     clearTimeout(resetArmed); resetArmed = 0;
