@@ -898,10 +898,10 @@
     btn.title = `Hint — $${money(price)}` + (bank < price ? " (on credit)" : "");
   }
 
-  // Points run live and tick down from the first second. Each arrow starts worth 20, is
-  // worth 10 at par pace (two seconds an arrow) and keeps sliding as the clock runs on —
-  // plus a flat 2 per arrow for the size of the board. Whatever the counter shows when the
-  // last arrow leaves is banked.
+  // Points run live and tick down from the first second. Each arrow starts worth 2.5, is
+  // worth 1.25 at par pace (two seconds an arrow) and keeps sliding as the clock runs on —
+  // plus a flat 0.25 per arrow for the size of the board. Whatever the counter shows when
+  // the last arrow leaves is banked. (SCALE trims the whole thing; 1/8 keeps payouts modest.)
   //   Classic:     each bow lost takes 15% off at the end.
   //   High stakes: each bump deducts points on the spot, doubling every time; under zero
   //                ends the level.
@@ -910,10 +910,11 @@
   let mode = "classic";
   try { mode = localStorage.getItem("runway-mode") === "risk" ? "risk" : "classic"; } catch (e) {}
   let riskBumps = 0, riskPenalty = 0;
-  const bumpCost = (n) => puzzle.snakes.length * Math.pow(2, n); // cost of the (n+1)th bump
+  const SCALE = 1 / 8;
+  const bumpCost = (n) => Math.max(1, Math.round(puzzle.snakes.length * SCALE)) * Math.pow(2, n); // the (n+1)th bump
   function basePoints(seconds) {
     const arrows = puzzle.snakes.length, par = arrows * 2;
-    return Math.round(20 * arrows * par / (par + seconds)) + arrows * 2;
+    return Math.round((20 * arrows * par / (par + seconds) + arrows * 2) * SCALE);
   }
   const livePoints = () => basePoints(elapsed()) - riskPenalty;
   const fmtTime = (sec) => Math.floor(sec / 60) + ":" + String(Math.floor(sec % 60)).padStart(2, "0");
@@ -1216,7 +1217,7 @@
       }
       // Listener bonus: clear a level with CHIR playing and the station tips you 10% extra.
       const listening = radio.dataset.state === "playing";
-      const bonus = listening ? Math.max(10, Math.round(score * LISTEN_BONUS)) : 0;
+      const bonus = listening ? Math.max(2, Math.round(score * LISTEN_BONUS)) : 0;
       bank += score + bonus;
       saveBank();
       scoreEl.innerHTML = `+$${money(score)}<small>${bonus ? `<span class="bonus">+$${money(bonus)} CHIR listener bonus</span> · ` : ""}${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}${bank < 0 ? "you owe " + dollars(-bank) : "you have " + dollars(bank)}</small>`;
