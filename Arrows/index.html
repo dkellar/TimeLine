@@ -294,6 +294,9 @@
   .snake.armed .line, .snake.armed .head { stroke: #E8842A; }
   .snake.hint .line, .snake.hint .head { stroke: var(--accent); animation: blink 500ms ease 3; }
   .snake.hit-shake { animation: jiggle 260ms ease; }
+  /* The arrow that stopped a tapped one lights up red for a moment: "this is in the way". */
+  .snake.blocker .line, .snake.blocker .head { stroke: #C62828; animation: blockflash 900ms ease; }
+  @keyframes blockflash { 0%, 60% { stroke: #C62828; } 100% { stroke: var(--line); } }
   @keyframes blink { 50% { opacity: 0.25; } }
   @keyframes jiggle {
     0% { transform: translate(0, 0); }
@@ -503,7 +506,7 @@
     <button class="btn quiet" id="skipBtn">Skip level</button>
     <button class="btn quiet" id="modeBtn">Mode</button>
     <button class="btn quiet" id="debugBtn">Debug</button>
-    <span class="version">v33</span>
+    <span class="version">v34</span>
   </div>
 </div>
 
@@ -1013,9 +1016,9 @@
   function drawSnake(g, pts, d) {
     const [dr, dc] = DIRS[d];
     const head = pts[pts.length - 1];
-    const tip = [head[0] + dc * 0.34 * U, head[1] + dr * 0.34 * U];
+    const tip = [head[0] + dc * 0.3 * U, head[1] + dr * 0.3 * U];
     const shaft = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(2) + " " + p[1].toFixed(2)).join("") + `L${tip[0].toFixed(2)} ${tip[1].toFixed(2)}`;
-    const back = 0.19 * U, side = 0.17 * U;
+    const back = 0.18 * U, side = 0.17 * U;
     const a = [tip[0] - dc * back - dr * side, tip[1] - dr * back + dc * side];
     const b = [tip[0] - dc * back + dr * side, tip[1] - dr * back - dc * side];
     const chevron = `M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${tip[0].toFixed(2)} ${tip[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}`;
@@ -1325,14 +1328,16 @@
       updateHud();
       armed.add(id);
       g.classList.add("armed");
-      const reach = free + 0.35;
+      const reach = free + 0.55; // even with no gap, a clear lunge before the recoil
       slide(s, track, 0, reach, Math.max(110, (reach / SPEED) * 1000), easeIn, null, () => {
         thunk();
         const b = els[blocker];
         if (b) {
-          b.style.setProperty("--jx", DIRS[s.d][1] * 1.4 + "px");
-          b.style.setProperty("--jy", DIRS[s.d][0] * 1.4 + "px");
+          b.style.setProperty("--jx", DIRS[s.d][1] * 2.2 + "px");
+          b.style.setProperty("--jy", DIRS[s.d][0] * 2.2 + "px");
           b.classList.remove("hit-shake"); void b.getBBox(); b.classList.add("hit-shake");
+          b.classList.remove("blocker"); void b.getBBox(); b.classList.add("blocker");
+          setTimeout(() => b.classList.remove("blocker"), 900);
         }
         slide(s, track, reach, 0, 260, easeOut, null, () => {
           if (myGen !== gen) return;
