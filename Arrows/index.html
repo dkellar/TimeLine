@@ -981,7 +981,7 @@
       const g = document.createElementNS(board.namespaceURI, "g");
       g.classList.add("snake");
       g.setAttribute("role", "button");
-      g.setAttribute("tabindex", "0");
+      if (!isTouch) g.setAttribute("tabindex", "0"); // keyboard access on desktop; on touch, focus would only get in the way
       g.setAttribute("aria-label", `${["Up", "Right", "Down", "Left"][s.d]} arrow, ${s.cells.length} long`);
       for (const cls of ["hit", "line", "head"]) {
         const p = document.createElementNS(board.namespaceURI, "path");
@@ -1162,19 +1162,31 @@
   // Taps come straight from pointer events (finger down, then up close by and soon after),
   // not the browser's synthesised click — Safari drops clicks it half-suspects were scrolls.
   let press = null;
-  board.addEventListener("pointerdown", (e) => { if (e.isPrimary) press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() }; });
+  board.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+    // Capture: the lift counts even if the finger rolls off the board's edge (the top row
+    // is only a few pixels from it). And no focus change or selection on finger-down —
+    // Safari can turn either into a page nudge that cancels the tap.
+    try { board.setPointerCapture(e.pointerId); } catch (err) {}
+    if (e.pointerType !== "mouse") e.preventDefault();
+  });
   board.addEventListener("pointercancel", () => { press = null; });
-  board.addEventListener("pointerup", (e) => {
+  const lift = (e) => {
     if (!press || e.pointerId !== press.id) return;
     const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y), held = performance.now() - press.t;
     press = null;
-    if (moved > 12 || held > 600 || !puzzle || over) return;
+    try { board.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (moved > 14 || held > 700 || !puzzle || over) return;
     const pt = board.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
     const m = board.getScreenCTM(); if (!m) return;
     const p = pt.matrixTransform(m.inverse());
     const id = nearestPath(p.x, p.y);
     if (id >= 0) tap(id);
-  });
+    if (radioWanted && radio.dataset.state === "off") radioPlay(); // a lift is a user gesture, so audio may start
+  };
+  board.addEventListener("pointerup", lift);
+  document.addEventListener("pointerup", lift); // belt and braces where capture isn't honoured
 
   function tap(id) {
     const s = puzzle.snakes[id];
