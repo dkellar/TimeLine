@@ -289,9 +289,8 @@
     pointer-events: none;
     transition: stroke 160ms ease;
   }
-  @media (hover: hover) {
-    .snake:hover .line, .snake:hover .head { stroke: var(--accent); }
-  }
+  /* Hover follows the same nearest-arrow rule as taps, so what lights up is what a click hits. */
+  .snake.near .line, .snake.near .head { stroke: var(--accent); }
   .snake.armed .line, .snake.armed .head { stroke: #E8842A; }
   .snake.hint .line, .snake.hint .head { stroke: var(--accent); animation: blink 500ms ease 3; }
   .snake.hit-shake { animation: jiggle 260ms ease; }
@@ -344,7 +343,20 @@
   .btn:hover { transform: translateY(-1px); }
   .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
-  .footer { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  .footer { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .version { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: 0.06em; }
+  .debug {
+    position: fixed; left: 6px; right: 6px; bottom: 6px; z-index: 50;
+    max-height: 42vh; overflow: auto;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(20, 16, 12, 0.92); color: #E7CBA4;
+    font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace;
+    white-space: pre-wrap; word-break: break-all;
+    -webkit-user-select: text; user-select: text;
+  }
+  .dbg-mark { fill: none; stroke: #2F9E44; stroke-width: 0.8; pointer-events: none; }
+  .dbg-mark.miss { stroke: #B8382A; }
 
   /* Touch screens: fatter tap targets, no hover states. */
   :root.mobile .snake .hit, :root.touch .snake .hit { stroke-width: 9.5; }
@@ -490,6 +502,8 @@
     <button class="btn quiet" id="newBtn">New puzzle</button>
     <button class="btn quiet" id="skipBtn">Skip level</button>
     <button class="btn quiet" id="modeBtn">Mode</button>
+    <button class="btn quiet" id="debugBtn">Debug</button>
+    <span class="version">v33</span>
   </div>
 </div>
 
@@ -1159,6 +1173,65 @@
     }
     return best;
   }
+  // ---------- Debug readout (footer "Debug") ----------
+  let debugOn = false, debugLog = [], errorLog = [];
+  window.addEventListener("error", (e) => { errorLog.unshift(`${new Date().toLocaleTimeString()} ERROR ${e.message} @${(e.filename || "").split("/").pop()}:${e.lineno}`); errorLog = errorLog.slice(0, 5); renderDebug(); });
+  window.addEventListener("unhandledrejection", (e) => { errorLog.unshift(`${new Date().toLocaleTimeString()} REJECTION ${e.reason && (e.reason.message || e.reason)}`); errorLog = errorLog.slice(0, 5); renderDebug(); });
+  const debugEl = document.createElement("div");
+  debugEl.className = "debug"; debugEl.hidden = true; document.body.appendChild(debugEl);
+  $("debugBtn").addEventListener("click", () => { debugOn = !debugOn; debugEl.hidden = !debugOn; renderDebug(); });
+  // Test hook (debug builds only): lets an automated check call the tap resolver directly.
+  window.__runway = { nearestPath: (x, y) => nearestPath(x, y), boardPoint: (cx, cy) => boardPoint(cx, cy), snakes: () => puzzle.snakes, alive: () => alive, busy: (id) => busy(id), toPt, U, PAD };
+  function debugTap(info) {
+    if (!debugOn) return;
+    const { e, down, moved, held, p, id } = info;
+    const vv = window.visualViewport;
+    const label = id >= 0 ? puzzle.snakes[id] && `${["Up", "Right", "Down", "Left"][puzzle.snakes[id].d]} ${puzzle.snakes[id].cells.length}-long (#${id})` : id === -1 ? "NO ARROW near" : "REJECTED (moved/held)";
+    // What is actually drawn nearest the tap, whatever its state — this is what exposes ghosts.
+    let any = -1, anyD = 1e9;
+    for (const s of puzzle.snakes) {
+      const pts = s.cells.map(toPt);
+      for (let i = 0; i < pts.length - 1; i++) { const d = distToSegment(p.x, p.y, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]); if (d < anyD) { anyD = d; any = s.id; } }
+      if (pts.length === 1) { const d = Math.hypot(p.x - pts[0][0], p.y - pts[0][1]); if (d < anyD) { anyD = d; any = s.id; } }
+    }
+    const st = any >= 0 ? `#${any} alive=${alive[any]} busy=${busy(any)} armed=${armed.has(any)} inDOM=${!!(els[any] && els[any].isConnected)} ptrEvents=${els[any] ? (els[any].style.pointerEvents || "auto") : "-"} dist=${anyD.toFixed(1)}` : "none";
+    debugLog.unshift(`${new Date().toLocaleTimeString()} ${down.via ? "CLICK-FALLBACK" : e.pointerType} down(${Math.round(down.x)},${Math.round(down.y)}) up(${Math.round(e.clientX)},${Math.round(e.clientY)}) moved ${moved.toFixed(0)}px held ${held.toFixed(0)}ms → board(${p.x.toFixed(1)},${p.y.toFixed(1)}) cell(r${Math.floor(p.y / U - PAD)},c${Math.floor(p.x / U - PAD)}) → ${label} | nearest drawn: ${st}`);
+    debugLog = debugLog.slice(0, 6);
+    // Marker on the board where the game thinks the tap landed
+    board.querySelectorAll(".dbg-mark").forEach((m) => m.remove());
+    const c = document.createElementNS(board.namespaceURI, "circle");
+    c.setAttribute("class", "dbg-mark" + (id >= 0 ? "" : " miss")); c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 4);
+    board.appendChild(c);
+    renderDebug(vv, p);
+  }
+  function renderDebug(vv, p) {
+    if (!debugOn) return;
+    vv = vv || window.visualViewport;
+    const r = board.getBoundingClientRect();
+    const ctm = board.getScreenCTM();
+    const lines = [
+      `board rect: left ${r.left.toFixed(0)} top ${r.top.toFixed(0)} w ${r.width.toFixed(0)} h ${r.height.toFixed(0)} | viewBox ${board.getAttribute("viewBox")}`,
+      `window scroll ${window.scrollX},${window.scrollY} | inner ${window.innerWidth}x${window.innerHeight} | visualViewport ${vv ? `${vv.width.toFixed(0)}x${vv.height.toFixed(0)} off(${vv.offsetLeft.toFixed(0)},${vv.offsetTop.toFixed(0)}) page(${vv.pageLeft.toFixed(0)},${vv.pageTop.toFixed(0)}) scale ${vv.scale.toFixed(2)}` : "n/a"}`,
+      `doc scrollHeight ${document.documentElement.scrollHeight} vs innerHeight ${window.innerHeight} (scrollable: ${document.documentElement.scrollHeight > window.innerHeight})`,
+      (() => {
+        const vb = board.viewBox.baseVal, sc = Math.min(r.width / vb.width, r.height / vb.height);
+        const ex = r.left + (r.width - vb.width * sc) / 2, ey = r.top + (r.height - vb.height * sc) / 2;
+        return `getScreenCTM e,f: ${ctm ? `${ctm.e.toFixed(1)},${ctm.f.toFixed(1)}` : "null"} | rect-based origin: ${ex.toFixed(1)},${ey.toFixed(1)} | diff ${ctm ? `${(ctm.e - ex).toFixed(1)},${(ctm.f - ey).toFixed(1)}` : "?"} (non-zero = Safari CTM offset bug; taps use rect-based)`;
+      })(),
+      `touch ${isTouch} mobile ${isMobile} | ${navigator.userAgent.slice(0, 90)}`,
+      (() => {
+        if (!puzzle) return "";
+        const inDom = [...board.querySelectorAll(".snake")].length, liveCount = alive.filter(Boolean).length;
+        const ghosts = puzzle.snakes.filter((s) => !alive[s.id] && els[s.id] && els[s.id].isConnected && !busy(s.id)).map((s) => "#" + s.id);
+        return `paths: drawn ${inDom}, alive ${liveCount}, counter ${remaining}, animating ${animating.size} | GHOSTS (drawn but dead, not moving): ${ghosts.length ? ghosts.join(" ") : "none"}`;
+      })(),
+      ...(errorLog.length ? ["— errors —", ...errorLog] : []),
+      "— last taps —",
+      ...debugLog,
+    ];
+    debugEl.textContent = lines.join("\n");
+  }
+
   // Taps come straight from pointer events (finger down, then up close by and soon after),
   // not the browser's synthesised click — Safari drops clicks it half-suspects were scrolls.
   let press = null;
@@ -1172,20 +1245,54 @@
     if (e.pointerType !== "mouse") e.preventDefault();
   });
   board.addEventListener("pointercancel", () => { press = null; });
+  // Screen → board coordinates from the board's on-screen rectangle and its viewBox
+  // (xMidYMid meet). getScreenCTM() is avoided: Safari can return it offset by the page's
+  // scroll or toolbar state, which would shift every tap a row or two upward.
+  function boardPoint(clientX, clientY) {
+    const r = board.getBoundingClientRect();
+    const vb = board.viewBox.baseVal;
+    const scale = Math.min(r.width / vb.width, r.height / vb.height);
+    const ox = (r.width - vb.width * scale) / 2, oy = (r.height - vb.height * scale) / 2;
+    return { x: (clientX - r.left - ox) / scale + vb.x, y: (clientY - r.top - oy) / scale + vb.y, rect: r, scale };
+  }
+  let lastTapAt = 0;
+  function resolveTap(e, down, moved, held) {
+    const p = boardPoint(e.clientX, e.clientY);
+    const id = (moved > 14 || held > 700 || !puzzle || over) ? -2 : nearestPath(p.x, p.y);
+    debugTap({ e, down, moved, held, p, id });
+    if (id === -2) return;
+    lastTapAt = performance.now();
+    if (id >= 0) tap(id);
+    if (radioWanted && radio.dataset.state === "off") radioPlay(); // a tap is a user gesture, so audio may start
+  }
   const lift = (e) => {
     if (!press || e.pointerId !== press.id) return;
     const moved = Math.hypot(e.clientX - press.x, e.clientY - press.y), held = performance.now() - press.t;
+    const down = press;
     press = null;
     try { board.releasePointerCapture(e.pointerId); } catch (err) {}
-    if (moved > 14 || held > 700 || !puzzle || over) return;
-    const pt = board.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
-    const m = board.getScreenCTM(); if (!m) return;
-    const p = pt.matrixTransform(m.inverse());
-    const id = nearestPath(p.x, p.y);
-    if (id >= 0) tap(id);
-    if (radioWanted && radio.dataset.state === "off") radioPlay(); // a lift is a user gesture, so audio may start
+    resolveTap(e, down, moved, held);
   };
+  // Fallback: if the browser hands us a click that no pointer sequence produced a tap for
+  // (Safari can cancel or reroute pointer events), resolve the click the same way, once.
+  board.addEventListener("click", (e) => {
+    if (performance.now() - lastTapAt < 350) return;
+    resolveTap(e, { x: e.clientX, y: e.clientY, t: performance.now(), via: "click" }, 0, 0);
+  });
   board.addEventListener("pointerup", lift);
+  let nearEl = null, hoverRaf = 0;
+  board.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "touch" || hoverRaf) return;
+    hoverRaf = requestAnimationFrame(() => {
+      hoverRaf = 0;
+      if (!puzzle) return;
+      const p = boardPoint(e.clientX, e.clientY);
+      const id = over ? -1 : nearestPath(p.x, p.y);
+      const g = id >= 0 ? els[id] : null;
+      if (g !== nearEl) { if (nearEl) nearEl.classList.remove("near"); nearEl = g; if (g) g.classList.add("near"); }
+    });
+  });
+  board.addEventListener("pointerleave", () => { if (nearEl) { nearEl.classList.remove("near"); nearEl = null; } });
   document.addEventListener("pointerup", lift); // belt and braces where capture isn't honoured
 
   function tap(id) {
