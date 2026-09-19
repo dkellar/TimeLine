@@ -347,7 +347,7 @@
   .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
   .footer { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .version { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: 0.06em; }
+  .version { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: 0.06em; padding: 6px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .debug {
     position: fixed; left: 6px; right: 6px; bottom: 6px; z-index: 50;
     max-height: 42vh; overflow: auto;
@@ -505,8 +505,7 @@
     <button class="btn quiet" id="newBtn">New puzzle</button>
     <button class="btn quiet" id="skipBtn">Skip level</button>
     <button class="btn quiet" id="modeBtn">Mode</button>
-    <button class="btn quiet" id="debugBtn">Debug</button>
-    <span class="version">v34</span>
+    <span class="version" id="version" title="Version">v35</span>
   </div>
 </div>
 
@@ -1182,7 +1181,11 @@
   window.addEventListener("unhandledrejection", (e) => { errorLog.unshift(`${new Date().toLocaleTimeString()} REJECTION ${e.reason && (e.reason.message || e.reason)}`); errorLog = errorLog.slice(0, 5); renderDebug(); });
   const debugEl = document.createElement("div");
   debugEl.className = "debug"; debugEl.hidden = true; document.body.appendChild(debugEl);
-  $("debugBtn").addEventListener("click", () => { debugOn = !debugOn; debugEl.hidden = !debugOn; renderDebug(); });
+  // The readout stays available for troubleshooting: press and hold the version number.
+  const toggleDebug = () => { debugOn = !debugOn; debugEl.hidden = !debugOn; renderDebug(); };
+  let verHold = 0;
+  $("version").addEventListener("pointerdown", () => { verHold = setTimeout(toggleDebug, 1200); });
+  for (const ev of ["pointerup", "pointerleave", "pointercancel"]) $("version").addEventListener(ev, () => clearTimeout(verHold));
   // Test hook (debug builds only): lets an automated check call the tap resolver directly.
   window.__runway = { nearestPath: (x, y) => nearestPath(x, y), boardPoint: (cx, cy) => boardPoint(cx, cy), snakes: () => puzzle.snakes, alive: () => alive, busy: (id) => busy(id), toPt, U, PAD };
   function debugTap(info) {
