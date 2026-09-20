@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CHIR Dial-A-Hit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Share+Tech+Mono&family=Archivo:wght@400;600;700&display=swap">
+<style>
+  /* ---- Studio console palette (single committed theme) ---- */
+  :root {
+    --ground: #14161d;
+    --panel: #1e212b;
+    --panel-2: #272b37;
+    --line: #363b4a;
+    --ink: #f3eee4;
+    --ink-dim: #a5a39b;
+    --key: #efe6d1;
+    --key-edge: #b9ad92;
+    --key-ink: #1d1b17;
+    --red: #e4432e;
+    --amber: #f2b23f;
+    --green: #4fc37e;
+    --lcd: #1a2a20;
+    --lcd-ink: #bdeeaa;
+    --lcd-dim: #5e8a62;
+    --font-display: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
+    --font-mono: "Share Tech Mono", "Courier New", monospace;
+    --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    background-image: radial-gradient(ellipse 120% 70% at 50% -10%, #2a2f3e 0%, var(--ground) 60%);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding-inline: 16px;
+    padding-block: 14px 32px;
+  }
+  button { font: inherit; cursor: pointer; }
+  button:focus-visible, .slot:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 16px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .callsign { font-family: var(--font-display); font-size: 34px; letter-spacing: .04em; line-height: 1; }
+  .callsign span { color: var(--amber); }
+  .tagline { font-size: 11px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-dim); }
+  .onair {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--font-display); font-size: 18px; letter-spacing: .12em;
+    padding: 6px 12px; border-radius: 4px; border: 1px solid var(--line); color: var(--ink-dim);
+  }
+  .onair .dot { width: 10px; height: 10px; border-radius: 50%; background: #4a3230; }
+  .onair.live { color: var(--ink); border-color: #6b2b23; background: #2a1815; }
+  .onair.live .dot { background: var(--red); box-shadow: 0 0 10px var(--red); animation: blink 1.2s steps(2, start) infinite; }
+  @keyframes blink { to { opacity: .35; } }
+  .listen {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--font-display); font-size: 16px; letter-spacing: .1em;
+    padding: 6px 10px; border-radius: 4px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink-dim);
+  }
+  .listen .ico { font-size: 12px; }
+  .listen.on { color: var(--amber); border-color: #6a5124; background: #2a2114; }
+  .listen.on .ico { animation: blink 1s steps(2, start) infinite; }
+  .listen.err { color: #ff8a78; }
+  .topbar .right { display: flex; align-items: center; gap: 8px; }
+
+  /* ---- Intro ---- */
+  h1 { font-family: var(--font-display); font-size: 56px; line-height: .95; margin: 8px 0 6px; letter-spacing: .02em; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--amber); }
+  .lede { color: var(--ink-dim); margin: 0 0 20px; max-width: 40ch; }
+  .rules { display: grid; gap: 10px; margin: 0 0 22px; padding: 0; list-style: none; }
+  .rules li { display: grid; grid-template-columns: 44px 1fr; gap: 12px; align-items: center; }
+  .rules .k {
+    font-family: var(--font-display); font-size: 22px; text-align: center; line-height: 1;
+    background: var(--key); color: var(--key-ink); border-radius: 6px; padding: 8px 0;
+    box-shadow: 0 3px 0 var(--key-edge);
+  }
+  .rules .k small { display: block; font-family: var(--font-body); font-size: 9px; letter-spacing: .15em; font-weight: 600; }
+  .sample { font-family: var(--font-mono); color: var(--lcd-ink); background: var(--lcd); padding: 2px 8px; border-radius: 4px; letter-spacing: .1em; }
+  .best { font-size: 13px; color: var(--ink-dim); margin-top: 14px; }
+  .best b { color: var(--amber); font-family: var(--font-mono); font-size: 16px; }
+
+  .btn {
+    width: 100%; border: 0; border-radius: 8px; padding: 16px 20px;
+    font-family: var(--font-display); font-size: 26px; letter-spacing: .1em;
+    background: var(--red); color: #fff; box-shadow: 0 4px 0 #8f2417;
+    transition: transform .06s ease, box-shadow .06s ease;
+  }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f2417; }
+  .btn.secondary { background: var(--panel-2); box-shadow: 0 4px 0 #0f1117; }
+  .btn.secondary:active { box-shadow: 0 1px 0 #0f1117; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 10px; }
+  .btn.pass { background: transparent; box-shadow: none; border: 1px solid var(--line); color: var(--ink-dim); font-size: 20px; padding-inline: 10px; display: grid; gap: 2px; line-height: 1; }
+  .btn.pass:active { transform: none; background: var(--panel); }
+  .btn.pass small { font-family: var(--font-body); font-size: 10px; letter-spacing: .15em; font-weight: 600; }
+  .results .mark.skip { color: var(--ink-dim); }
+  .btn.buy { background: var(--panel-2); box-shadow: 0 4px 0 #0f1117; font-size: 20px; padding-inline: 10px; display: grid; gap: 2px; line-height: 1; }
+  .btn.buy:active { box-shadow: 0 1px 0 #0f1117; }
+  .btn.buy small { font-family: var(--font-body); font-size: 10px; letter-spacing: .15em; color: var(--amber); font-weight: 600; }
+  .status .val.neg { color: #ff8a78; }
+  .clock.bonus .val { color: var(--green); }
+
+  /* ---- Play: status strip ---- */
+  .status {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 12px;
+    margin-bottom: 14px;
+  }
+  .status .lbl { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-dim); }
+  .status .val { font-family: var(--font-mono); font-size: 20px; font-variant-numeric: tabular-nums; }
+  .status .right { text-align: right; }
+  .clock { text-align: center; }
+  .clock .val { font-size: 40px; line-height: 1; color: var(--ink); }
+  .clock.warn .val { color: var(--red); animation: pulse .6s ease-in-out infinite alternate; }
+  @keyframes pulse { to { opacity: .55; } }
+  .tries { display: inline-flex; gap: 5px; vertical-align: middle; }
+  .tries i { width: 12px; height: 12px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 6px rgba(242,178,63,.6); }
+  .tries i.used { background: #3d3524; box-shadow: none; }
+  .timebar { height: 4px; background: var(--panel-2); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+  .timebar div { height: 100%; background: var(--amber); width: 100%; transition: width 1s linear; }
+  .clock.warn ~ .timebar div, .timebar.warn div { background: var(--red); }
+
+  /* ---- Hint card ---- */
+  .hint {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 14px;
+  }
+  .hint .cat { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--amber); font-weight: 600; }
+  .hint .clue { font-size: 17px; font-weight: 600; margin-top: 2px; text-wrap: balance; }
+
+  /* ---- LCD readout ---- */
+  .lcd {
+    background: var(--lcd); border-radius: 10px; padding: 14px 12px 12px;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,.6), 0 0 0 1px #2c3d31;
+    margin-bottom: 8px; min-height: 76px;
+  }
+  .readout { display: flex; flex-wrap: wrap; gap: 12px 18px; justify-content: center; }
+  .word { display: flex; gap: 4px; }
+  .slot { display: grid; gap: 3px; justify-items: center; cursor: pointer; border: 0; background: none; padding: 0; }
+  .slot .d { font-family: var(--font-mono); font-size: 11px; color: var(--lcd-dim); line-height: 1; }
+  .slot .c {
+    width: 28px; height: 36px; display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 23px; color: var(--lcd-ink);
+    border: 1px solid #3a5a40; border-radius: 4px; background: rgba(0,0,0,.25);
+    transition: background .15s, border-color .15s;
+  }
+  .slot.active .c { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 10px rgba(242,178,63,.45); }
+  .slot.active .d { color: var(--amber); }
+  .slot.locked .c { background: #2c6b45; border-color: #4fc37e; color: #eafde9; }
+  .slot.wrong .c { animation: flashwrong .5s ease; }
+  .slot.reveal .c { background: #5a2a24; border-color: var(--red); color: #ffd9d3; }
+  @keyframes flashwrong { 0%,60% { background: #6a2a22; border-color: var(--red); } 100% { background: rgba(0,0,0,.25); } }
+  .msg { min-height: 22px; text-align: center; font-size: 14px; color: var(--ink-dim); margin-bottom: 12px; }
+  .msg.good { color: var(--green); font-weight: 600; }
+  .msg.bad { color: #ff8a78; }
+  .shake { animation: shake .35s ease; }
+  @keyframes shake { 20% { transform: translateX(-5px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+
+  /* ---- Keypad ---- */
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .key {
+    position: relative; height: 64px; border: 0; border-radius: 8px;
+    background: var(--key); color: var(--key-ink);
+    box-shadow: 0 4px 0 var(--key-edge), inset 0 1px 0 #fff;
+    display: grid; align-content: center; justify-items: center; gap: 2px;
+    transition: transform .05s ease, box-shadow .05s ease;
+    -webkit-user-select: none; user-select: none; touch-action: manipulation;
+  }
+  .key:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--key-edge), inset 0 1px 0 #fff; }
+  .key .n { font-family: var(--font-display); font-size: 30px; line-height: 1; }
+  .key .l { font-size: 10px; font-weight: 700; letter-spacing: .2em; line-height: 1; }
+  .key .l:empty::before { content: "\00a0"; }
+  .key.dim { opacity: .5; }
+  .key.hot { box-shadow: 0 4px 0 var(--key-edge), 0 0 0 2px var(--amber), 0 0 14px rgba(242,178,63,.5); }
+  .key.fn { background: var(--panel-2); color: var(--ink); box-shadow: 0 4px 0 #0f1117; }
+  .key.fn:active { box-shadow: 0 1px 0 #0f1117; }
+  .key.fn .n { font-size: 26px; }
+  .key.fn .l { color: var(--ink-dim); }
+
+  /* ---- Results ---- */
+  .total { text-align: center; margin: 6px 0 18px; }
+  .total .lbl { font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: var(--ink-dim); }
+  .total .num { font-family: var(--font-mono); font-size: 64px; line-height: 1; color: var(--amber); }
+  .total .sub { color: var(--ink-dim); font-size: 13px; margin-top: 4px; }
+  .results { list-style: none; margin: 0 0 18px; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .results li { display: grid; grid-template-columns: 28px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; background: var(--panel); }
+  .results li + li { border-top: 1px solid var(--line); }
+  .results .mark { font-family: var(--font-display); font-size: 22px; text-align: center; }
+  .results .mark.ok { color: var(--green); } .results .mark.no { color: var(--red); }
+  .results .ans { font-weight: 600; }
+  .results .cat { display: block; font-size: 11px; color: var(--ink-dim); letter-spacing: .1em; text-transform: uppercase; }
+  .results .pts { font-family: var(--font-mono); font-size: 18px; color: var(--amber); font-variant-numeric: tabular-nums; }
+  .promo { text-align: center; font-size: 13px; color: var(--ink-dim); margin: 0 0 16px; }
+  .stack { display: grid; gap: 10px; }
+
+  @media (max-width: 380px) {
+    .slot .c { width: 25px; height: 33px; font-size: 20px; }
+    .key { height: 58px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shake, .slot.wrong .c, .onair.live .dot, .clock.warn .val { animation: none; }
+    .timebar div { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="callsign">CHIR<span>.fm</span></div>
+      <div class="tagline">Dial-A-Hit</div>
+    </div>
+    <div class="right">
+      <button class="listen" id="btn-listen" type="button" aria-pressed="false"><span class="ico">▶</span><span id="listen-lbl">Listen live</span></button>
+      <div class="onair" id="onair"><span class="dot"></span>ON AIR</div>
+    </div>
+  </header>
+  <audio id="radio" preload="none"></audio>
+
+  <!-- ============ INTRO ============ -->
+  <section id="screen-intro">
+    <h1>Can you <em>dial</em> the hit?</h1>
+    <p class="lede">We give you a music clue and a phone number. Every digit hides a letter from the old touch-tone keypad. Decode the band, song or artist before the clock runs out.</p>
+    <ul class="rules">
+      <li><span class="k">7<small>PQRS</small></span><span>Each digit stands for one of its letters. <span class="sample">7 8 3 3 6</span> could be <b>QUEEN</b>.</span></li>
+      <li><span class="k">TAP</span><span>Tap a key to cycle through its letters. Tap <b>*</b> and <b>#</b> to move between letters, <b>0</b> to erase one.</span></li>
+      <li><span class="k">3<small>TRIES</small></span><span>Hit <b>GUESS</b>. Right letters lock in green; wrong ones clear. You get <b id="r-tries">3</b> guesses and <b id="r-secs">60</b> seconds per puzzle.</span></li>
+      <li><span class="k">+30<small>SECS</small></span><span>Running out of clock? <b>Buy time</b>: +<b id="r-buysecs">30</b> seconds for <b id="r-buycost">25</b> points. Your score can go negative, so spend wisely.</span></li>
+      <li><span class="k">PASS</span><span>No clue at all? <b>Pass</b> reveals the answer and moves to the next track — no points, and the clock stops eating your bonus elsewhere.</span></li>
+    </ul>
+    <button class="btn" id="btn-start">Start the round</button>
+    <p class="best" id="best-line" hidden>Your best round: <b id="best-score">0</b> pts</p>
+  </section>
+
+  <!-- ============ PLAY ============ -->
+  <section id="screen-play" hidden>
+    <div class="status">
+      <div>
+        <div class="lbl">Track</div>
+        <div class="val"><span id="s-idx">1</span>/<span id="s-total">5</span></div>
+      </div>
+      <div class="clock" id="clock">
+        <div class="lbl">Seconds</div>
+        <div class="val" id="s-time">60</div>
+      </div>
+      <div class="right">
+        <div class="lbl">Score</div>
+        <div class="val" id="s-score">0</div>
+      </div>
+    </div>
+    <div class="timebar" id="timebar"><div id="timefill"></div></div>
+
+    <div class="hint">
+      <div class="cat"><span id="h-cat">Band</span> · <span class="tries" id="tries"></span></div>
+      <div class="clue" id="h-clue">—</div>
+    </div>
+
+    <div class="lcd" id="lcd"><div class="readout" id="readout"></div></div>
+    <div class="msg" id="msg"></div>
+
+    <div class="keypad" id="keypad">
+      <button class="key dim" data-key="1" aria-label="1"><span class="n">1</span><span class="l"></span></button>
+      <button class="key" data-key="2"><span class="n">2</span><span class="l">ABC</span></button>
+      <button class="key" data-key="3"><span class="n">3</span><span class="l">DEF</span></button>
+      <button class="key" data-key="4"><span class="n">4</span><span class="l">GHI</span></button>
+      <button class="key" data-key="5"><span class="n">5</span><span class="l">JKL</span></button>
+      <button class="key" data-key="6"><span class="n">6</span><span class="l">MNO</span></button>
+      <button class="key" data-key="7"><span class="n">7</span><span class="l">PQRS</span></button>
+      <button class="key" data-key="8"><span class="n">8</span><span class="l">TUV</span></button>
+      <button class="key" data-key="9"><span class="n">9</span><span class="l">WXYZ</span></button>
+      <button class="key fn" data-key="*" aria-label="Previous letter"><span class="n">*</span><span class="l">◀ PREV</span></button>
+      <button class="key fn" data-key="0" aria-label="Erase letter"><span class="n">0</span><span class="l">ERASE</span></button>
+      <button class="key fn" data-key="#" aria-label="Next letter"><span class="n">#</span><span class="l">NEXT ▶</span></button>
+    </div>
+    <div class="actions">
+      <button class="btn pass" id="btn-pass" type="button">Pass<small id="pass-sub">SKIP IT</small></button>
+      <button class="btn buy" id="btn-buy" type="button">+<span id="buy-secs">30</span>s<small>−<span id="buy-cost">25</span> PTS</small></button>
+      <button class="btn" id="btn-guess">Guess</button>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section id="screen-results" hidden>
+    <div class="total">
+      <div class="lbl">Round score</div>
+      <div class="num" id="final-score">0</div>
+      <div class="sub" id="final-sub"></div>
+    </div>
+    <ul class="results" id="results"></ul>
+    <p class="promo" id="promo"></p>
+    <div class="stack">
+      <button class="btn" id="btn-again">Play again</button>
+      <button class="btn secondary" id="btn-home">Back to start</button>
+    </div>
+  </section>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG — station staff: tweak these freely
+   ===================================================================== */
+const CONFIG = {
+  puzzlesPerRound: 5,
+  secondsPerPuzzle: 60,
+  triesPerPuzzle: 3,
+  lockCorrectLetters: true,      // after a wrong guess, correct letters stay and wrong ones clear
+  pointsPerSolve: 100,
+  pointsPerSecondLeft: 2,
+  pointsPerTryLeft: 25,
+  promoLine: "Screenshot your final score and send it to CHIR.fm to enter the draw.",
+  passCost: 0,                   // points deducted for passing on a puzzle (0 = free)
+  buyTimeSeconds: 30,            // "Buy time" adds this many seconds...
+  buyTimeCost: 25,               // ...for this many points (score may go negative)
+  maxBonusSeconds: 60,           // time bonus at solve is capped here so bought time can't be farmed for points
+  streamUrl: "https://stream.aiir.com/iirwxwmjurkuv",   // CHIR.fm live stream (from chir.fm/player)
+  playRadioOnStart: true,        // start the stream when the player taps Start (browsers need a tap first)
+};
+
+/* =====================================================================
+   PUZZLES — answers use letters and spaces only (no digits/punctuation)
+   category: "Band", "Song Title" or "Artist"
+   ===================================================================== */
+const PUZZLES = [
+  { answer: "THE TRAGICALLY HIP", category: "Band",       clue: "Kingston, Ontario. Bobcaygeon. Gord Downie." },
+  { answer: "RUSH",               category: "Band",       clue: "Toronto power trio behind Tom Sawyer" },
+  { answer: "TOM SAWYER",         category: "Song Title", clue: "Rush, 1981. A modern-day warrior." },
+  { answer: "ARCADE FIRE",        category: "Band",       clue: "Montreal indie collective, Wake Up" },
+  { answer: "BLUE RODEO",         category: "Band",       clue: "Canadian country-rock, Try and Lost Together" },
+  { answer: "BRYAN ADAMS",        category: "Artist",     clue: "Kingston-born rocker who had a great summer in 1969" },
+  { answer: "BARENAKED LADIES",   category: "Band",       clue: "Scarborough band with a million dollars in mind" },
+  { answer: "ONE WEEK",           category: "Song Title", clue: "Barenaked Ladies, 1998. Chickity China." },
+  { answer: "NEIL YOUNG",         category: "Artist",     clue: "Winnipeg-raised, Harvest, Heart of Gold" },
+  { answer: "HEART OF GOLD",      category: "Song Title", clue: "Neil Young, 1972. Still a miner for it." },
+  { answer: "GORDON LIGHTFOOT",   category: "Artist",     clue: "Sang of the wreck of the Edmund Fitzgerald" },
+  { answer: "JONI MITCHELL",      category: "Artist",     clue: "Alberta-born, painted a Big Yellow Taxi" },
+  { answer: "BIG YELLOW TAXI",    category: "Song Title", clue: "Paved paradise, put up a parking lot" },
+  { answer: "NICKELBACK",         category: "Band",       clue: "Hanna, Alberta. How You Remind Me." },
+  { answer: "SLOAN",              category: "Band",       clue: "Halifax pop-rock, Underwhelmed" },
+  { answer: "BLINDING LIGHTS",    category: "Song Title", clue: "The Weeknd, 2019. Sin City's cold and empty." },
+  { answer: "QUEEN",              category: "Band",       clue: "Freddie, Brian, Roger and John" },
+  { answer: "BOHEMIAN RHAPSODY",  category: "Song Title", clue: "Queen, 1975. Is this the real life?" },
+  { answer: "THE BEATLES",        category: "Band",       clue: "The Fab Four from Liverpool" },
+  { answer: "HEY JUDE",           category: "Song Title", clue: "Beatles, 1968. Take a sad song and make it better." },
+  { answer: "NIRVANA",            category: "Band",       clue: "Seattle grunge, Kurt Cobain" },
+  { answer: "FLEETWOOD MAC",      category: "Band",       clue: "Rumours, 1977" },
+  { answer: "DREAMS",             category: "Song Title", clue: "Fleetwood Mac. Thunder only happens when it's raining." },
+  { answer: "HOTEL CALIFORNIA",   category: "Song Title", clue: "Eagles, 1977. You can check out any time you like." },
+  { answer: "PURPLE RAIN",        category: "Song Title", clue: "Prince, 1984" },
+  { answer: "BILLIE JEAN",        category: "Song Title", clue: "Michael Jackson, 1983. The kid is not my son." },
+  { answer: "WONDERWALL",         category: "Song Title", clue: "Oasis, 1995. Maybe you're gonna be the one that saves me." },
+  { answer: "COLDPLAY",           category: "Band",       clue: "Chris Martin's band. Yellow, Clocks." },
+  { answer: "RADIOHEAD",          category: "Band",       clue: "Creep, OK Computer" },
+  { answer: "ROLLING STONES",     category: "Band",       clue: "Mick and Keith. Satisfaction." },
+  { answer: "ABBA",               category: "Band",       clue: "Swedish pop. Dancing Queen." },
+  { answer: "DANCING QUEEN",      category: "Song Title", clue: "ABBA, 1976. Young and sweet, only seventeen." },
+  { answer: "LED ZEPPELIN",       category: "Band",       clue: "Page, Plant, Jones and Bonham" },
+  { answer: "STAIRWAY TO HEAVEN", category: "Song Title", clue: "Led Zeppelin, 1971. There's a lady who's sure." },
+  { answer: "SWEET CAROLINE",     category: "Song Title", clue: "Neil Diamond. Bum bum bum." },
+  { answer: "SHAKE IT OFF",       category: "Song Title", clue: "Taylor Swift, 2014. Haters gonna hate." },
+  { answer: "UPTOWN FUNK",        category: "Song Title", clue: "Mark Ronson and Bruno Mars, 2014" },
+  { answer: "METALLICA",          category: "Band",       clue: "Enter Sandman, Master of Puppets" },
+  { answer: "PEARL JAM",          category: "Band",       clue: "Eddie Vedder. Jeremy, Alive." },
+  { answer: "GREEN DAY",          category: "Band",       clue: "Basket Case, American Idiot" },
+  { answer: "THE KILLERS",        category: "Band",       clue: "Las Vegas. Mr. Brightside." },
+  { answer: "FOO FIGHTERS",       category: "Band",       clue: "Dave Grohl's post-Nirvana band" },
+  { answer: "ELTON JOHN",         category: "Artist",     clue: "Rocket Man, Tiny Dancer" },
+  { answer: "DOLLY PARTON",       category: "Artist",     clue: "Jolene, 9 to 5" },
+  { answer: "JOLENE",             category: "Song Title", clue: "Dolly Parton, 1973. Please don't take my man." },
+];
+
+/* ===================================================================== */
+const KEYS = { "2":"ABC", "3":"DEF", "4":"GHI", "5":"JKL", "6":"MNO", "7":"PQRS", "8":"TUV", "9":"WXYZ" };
+const LETTER_TO_DIGIT = {};
+for (const d in KEYS) for (const ch of KEYS[d]) LETTER_TO_DIGIT[ch] = d;
+
+const $ = id => document.getElementById(id);
+const screens = { intro: $("screen-intro"), play: $("screen-play"), results: $("screen-results") };
+
+let round = null;   // { puzzles:[], index, score, results:[] }
+let game = null;    // { puzzle, slots:[], active, tries, timeLeft, over, won, points }
+let timerId = null;
+let usedIds = new Set();
+
+function show(name) {
+  for (const k in screens) screens[k].hidden = (k !== name);
+  $("onair").classList.toggle("live", name === "play");
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function pickPuzzles(n) {
+  let pool = PUZZLES.map((p, i) => ({ ...p, id: i })).filter(p => !usedIds.has(p.id));
+  if (pool.length < n) { usedIds.clear(); pool = PUZZLES.map((p, i) => ({ ...p, id: i })); }
+  const chosen = shuffle(pool).slice(0, n);
+  chosen.forEach(p => usedIds.add(p.id));
+  return chosen;
+}
+
+/* ---------- Round flow ---------- */
+function startRound() {
+  round = { puzzles: pickPuzzles(CONFIG.puzzlesPerRound), index: 0, score: 0, results: [] };
+  $("s-total").textContent = round.puzzles.length;
+  show("play");
+  loadPuzzle();
+}
+
+function loadPuzzle() {
+  const puzzle = round.puzzles[round.index];
+  const letters = puzzle.answer.toUpperCase().replace(/[^A-Z ]/g, "");
+  const slots = [];
+  let word = 0;
+  for (const ch of letters) {
+    if (ch === " ") { word++; continue; }
+    slots.push({ answer: ch, digit: LETTER_TO_DIGIT[ch], ch: "", locked: false, word });
+  }
+  game = { puzzle, slots, active: 0, tries: CONFIG.triesPerPuzzle, timeLeft: CONFIG.secondsPerPuzzle, over: false, won: false, points: 0 };
+
+  $("s-idx").textContent = round.index + 1;
+  $("s-score").textContent = round.score;
+  $("h-cat").textContent = puzzle.category;
+  $("h-clue").textContent = puzzle.clue;
+  $("btn-guess").textContent = "Guess";
+  $("btn-guess").disabled = false;
+  setMsg("");
+  buildReadout();
+  render();
+  startTimer();
+}
+
+function startTimer() {
+  stopTimer();
+  renderClock();
+  timerId = setInterval(() => {
+    game.timeLeft--;
+    renderClock();
+    if (game.timeLeft <= 0) endPuzzle(false, "time");
+  }, 1000);
+}
+function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+
+function renderClock() {
+  $("s-time").textContent = game.timeLeft;
+  $("timefill").style.width = Math.min(100, 100 * game.timeLeft / CONFIG.secondsPerPuzzle) + "%";
+  const warn = game.timeLeft <= 10 && !game.over;
+  $("clock").classList.toggle("warn", warn);
+  $("timebar").classList.toggle("warn", warn);
+}
+
+/* ---------- Readout ---------- */
+function buildReadout() {
+  const ro = $("readout");
+  ro.innerHTML = "";
+  let wordEl = null, lastWord = -1;
+  game.slots.forEach((s, i) => {
+    if (s.word !== lastWord) { wordEl = document.createElement("div"); wordEl.className = "word"; ro.appendChild(wordEl); lastWord = s.word; }
+    const b = document.createElement("button");
+    b.className = "slot"; b.type = "button"; b.dataset.i = i; b.setAttribute("aria-label", "Letter " + (i + 1) + ", digit " + s.digit);
+    b.innerHTML = '<span class="d">' + s.digit + '</span><span class="c"></span>';
+    b.addEventListener("click", () => { if (!game.over && !game.slots[i].locked) { game.active = i; render(); } });
+    wordEl.appendChild(b);
+  });
+}
+
+function render() {
+  const nodes = $("readout").querySelectorAll(".slot");
+  game.slots.forEach((s, i) => {
+    const n = nodes[i];
+    n.querySelector(".c").textContent = s.ch;
+    n.classList.toggle("active", i === game.active && !game.over);
+    n.classList.toggle("locked", s.locked);
+  });
+  // light up the keypad key that matches the active slot
+  const hot = game.over ? null : game.slots[game.active] && game.slots[game.active].digit;
+  document.querySelectorAll("#keypad .key").forEach(k => k.classList.toggle("hot", k.dataset.key === hot));
+  // tries
+  const t = $("tries"); t.innerHTML = "";
+  for (let i = 0; i < CONFIG.triesPerPuzzle; i++) { const dot = document.createElement("i"); if (i >= game.tries) dot.className = "used"; t.appendChild(dot); }
+  $("s-score").textContent = round.score;
+  $("s-score").classList.toggle("neg", round.score < 0);
+  $("btn-buy").disabled = game.over;
+  $("btn-pass").disabled = game.over;
+}
+
+function setMsg(text, kind) { const m = $("msg"); m.textContent = text; m.className = "msg" + (kind ? " " + kind : ""); }
+function shake(el) { el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+
+/* ---------- Slot navigation ---------- */
+function findSlot(from, pred) {
+  const n = game.slots.length;
+  for (let k = 0; k < n; k++) { const i = (from + k + n) % n; if (pred(game.slots[i], i)) return i; }
+  return -1;
+}
+function moveActive(dir) {
+  const i = findSlot(game.active + dir, s => !s.locked);   // wraps; stays put if only one open
+  if (i >= 0) game.active = i;
+}
+function nextOpenAfter(i) {
+  const j = findSlot(i + 1, (s, k) => !s.locked && k !== i);
+  return j >= 0 ? j : i;
+}
+
+/* ---------- Input ---------- */
+function pressDigit(d) {
+  if (game.over) return;
+  const letters = KEYS[d];
+  if (!letters) { shake($("keypad")); return; }
+  const s = game.slots[game.active];
+  if (s && !s.locked && s.digit === d) {
+    const idx = letters.indexOf(s.ch);
+    s.ch = letters[(idx + 1) % letters.length];      // "" → first letter; then cycle
+  } else {
+    const j = findSlot(game.active + 1, x => !x.locked && x.digit === d);
+    if (j < 0) { setMsg("No open " + d + " spots left", "bad"); shake($("lcd")); return; }
+    game.active = j;
+    game.slots[j].ch = letters[0];
+  }
+  setMsg("");
+  render();
+}
+
+function typeLetter(ch) {
+  if (game.over) return;
+  const d = LETTER_TO_DIGIT[ch];
+  if (!d) return;
+  const s = game.slots[game.active];
+  let target = -1;
+  if (s && !s.locked && s.digit === d) target = game.active;
+  else target = findSlot(game.active + 1, x => !x.locked && x.digit === d);
+  if (target < 0) { setMsg(ch + " is on the " + d + " key — no open " + d + " spot here", "bad"); shake($("lcd")); return; }
+  game.slots[target].ch = ch;
+  game.active = nextOpenAfter(target);
+  setMsg("");
+  render();
+}
+
+function erase() {
+  if (game.over) return;
+  const s = game.slots[game.active];
+  if (s && !s.locked && s.ch) { s.ch = ""; }
+  else { moveActive(-1); const p = game.slots[game.active]; if (p && !p.locked) p.ch = ""; }
+  render();
+}
+
+function submitGuess() {
+  if (game.over) { advance(); return; }
+  if (game.slots.some(s => !s.ch)) { setMsg("Fill in every letter first", "bad"); shake($("lcd")); return; }
+  const nodes = $("readout").querySelectorAll(".slot");
+  let correct = 0;
+  game.slots.forEach((s, i) => {
+    if (s.ch === s.answer) { correct++; if (CONFIG.lockCorrectLetters) s.locked = true; }
+    else { nodes[i].classList.remove("wrong"); void nodes[i].offsetWidth; nodes[i].classList.add("wrong"); if (CONFIG.lockCorrectLetters) s.ch = ""; }
+  });
+  if (correct === game.slots.length) { endPuzzle(true); return; }
+  game.tries--;
+  if (game.tries <= 0) { endPuzzle(false, "tries"); return; }
+  const first = findSlot(0, s => !s.locked);
+  game.active = first >= 0 ? first : 0;
+  setMsg(correct + " of " + game.slots.length + " letters right — " + game.tries + (game.tries === 1 ? " try" : " tries") + " left", "bad");
+  render();
+}
+
+function endPuzzle(won, reason) {
+  stopTimer();
+  game.over = true; game.won = won;
+  const nodes = $("readout").querySelectorAll(".slot");
+  game.slots.forEach((s, i) => { s.ch = s.answer; s.locked = won; nodes[i].classList.toggle("reveal", !won); nodes[i].classList.remove("wrong"); });
+  if (won) {
+    const bonusSecs = Math.min(game.timeLeft, CONFIG.maxBonusSeconds);
+    game.points = CONFIG.pointsPerSolve + bonusSecs * CONFIG.pointsPerSecondLeft + game.tries * CONFIG.pointsPerTryLeft;
+    round.score += game.points;
+    setMsg("Nailed it! +" + game.points + " pts (" + game.timeLeft + "s left)", "good");
+  } else {
+    const why = reason === "time" ? "Time's up!" : reason === "pass" ? "Passed." : "Out of tries.";
+    setMsg(why + " It was " + game.puzzle.answer + (reason === "pass" && CONFIG.passCost ? " (−" + CONFIG.passCost + " pts)" : ""), "bad");
+  }
+  round.results.push({ answer: game.puzzle.answer, category: game.puzzle.category, won, passed: reason === "pass", points: game.points });
+  renderClock();
+  render();
+  const last = round.index >= round.puzzles.length - 1;
+  $("btn-guess").textContent = last ? "See results" : "Next track ▶";
+}
+
+function passPuzzle() {
+  if (!game || game.over) return;
+  round.score -= CONFIG.passCost;
+  endPuzzle(false, "pass");
+}
+
+function buyTime() {
+  if (!game || game.over) return;
+  game.timeLeft += CONFIG.buyTimeSeconds;
+  round.score -= CONFIG.buyTimeCost;
+  game.bought = (game.bought || 0) + 1;
+  setMsg("+" + CONFIG.buyTimeSeconds + " seconds for " + CONFIG.buyTimeCost + " pts", "good");
+  const c = $("clock"); c.classList.add("bonus"); setTimeout(() => c.classList.remove("bonus"), 900);
+  renderClock();
+  render();
+}
+
+/* ---------- Radio ---------- */
+const radio = $("radio");
+function setListen(state, label) {
+  const b = $("btn-listen");
+  b.classList.toggle("on", state === "on");
+  b.classList.toggle("err", state === "err");
+  b.setAttribute("aria-pressed", state === "on" ? "true" : "false");
+  $("listen-lbl").textContent = label;
+  b.querySelector(".ico").textContent = state === "on" ? "●" : "▶";
+}
+function radioPlay() {
+  if (!CONFIG.streamUrl) return;
+  if (!radio.src) radio.src = CONFIG.streamUrl;
+  setListen("off", "Connecting…");
+  radio.play().then(() => setListen("on", "CHIR live")).catch(() => setListen("err", "Tap to listen"));
+}
+function radioStop() { radio.pause(); radio.removeAttribute("src"); radio.load(); setListen("off", "Listen live"); }
+function radioToggle() { radio.paused ? radioPlay() : radioStop(); }
+radio.addEventListener("error", () => setListen("err", "Stream offline"));
+radio.addEventListener("playing", () => setListen("on", "CHIR live"));
+
+function advance() {
+  round.index++;
+  if (round.index >= round.puzzles.length) showResults(); else loadPuzzle();
+}
+
+/* ---------- Results ---------- */
+function loadBest() { try { return Number(localStorage.getItem("chir-dial-best") || 0); } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem("chir-dial-best", String(v)); } catch (e) {} }
+
+function showResults() {
+  show("results");
+  const solved = round.results.filter(r => r.won).length;
+  $("final-score").textContent = round.score;
+  const best = loadBest();
+  let sub = solved + " of " + round.results.length + " decoded";
+  if (round.score > best) { saveBest(round.score); sub += " · New personal best!"; }
+  else if (best) sub += " · Best: " + best;
+  $("final-sub").textContent = sub;
+  const ul = $("results"); ul.innerHTML = "";
+  round.results.forEach(r => {
+    const li = document.createElement("li");
+    const mark = r.won ? ["ok", "✓"] : r.passed ? ["skip", "–"] : ["no", "✗"];
+    li.innerHTML = '<span class="mark ' + mark[0] + '">' + mark[1] + '</span>' +
+      '<span><span class="ans"></span><span class="cat"></span></span>' +
+      '<span class="pts">' + (r.won ? "+" + r.points : r.passed && CONFIG.passCost ? "−" + CONFIG.passCost : "0") + '</span>';
+    li.querySelector(".ans").textContent = r.answer;
+    li.querySelector(".cat").textContent = r.category;
+    ul.appendChild(li);
+  });
+  $("promo").textContent = CONFIG.promoLine;
+  $("promo").hidden = !CONFIG.promoLine;
+}
+
+function showIntro() {
+  stopTimer();
+  show("intro");
+  const best = loadBest();
+  $("best-line").hidden = !best;
+  $("best-score").textContent = best;
+}
+
+/* ---------- Wiring ---------- */
+$("r-tries").textContent = CONFIG.triesPerPuzzle;
+$("r-secs").textContent = CONFIG.secondsPerPuzzle;
+$("r-buysecs").textContent = CONFIG.buyTimeSeconds; $("buy-secs").textContent = CONFIG.buyTimeSeconds;
+$("r-buycost").textContent = CONFIG.buyTimeCost;    $("buy-cost").textContent = CONFIG.buyTimeCost;
+$("btn-listen").hidden = !CONFIG.streamUrl;
+$("btn-listen").addEventListener("click", radioToggle);
+$("btn-buy").addEventListener("click", buyTime);
+$("btn-pass").addEventListener("click", passPuzzle);
+$("pass-sub").textContent = CONFIG.passCost ? "−" + CONFIG.passCost + " PTS" : "SKIP IT";
+$("btn-start").addEventListener("click", () => { if (CONFIG.playRadioOnStart && radio.paused) radioPlay(); startRound(); });
+$("btn-again").addEventListener("click", startRound);
+$("btn-home").addEventListener("click", showIntro);
+$("btn-guess").addEventListener("click", submitGuess);
+$("keypad").addEventListener("click", e => {
+  const k = e.target.closest(".key"); if (!k || !game) return;
+  const key = k.dataset.key;
+  if (key === "*") { if (!game.over) { moveActive(-1); render(); } }
+  else if (key === "#") { if (!game.over) { moveActive(1); render(); } }
+  else if (key === "0") erase();
+  else pressDigit(key);
+});
+
+document.addEventListener("keydown", e => {
+  if (screens.play.hidden || !game) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  if (/^[a-zA-Z]$/.test(k)) { typeLetter(k.toUpperCase()); e.preventDefault(); }
+  else if (/^[0-9]$/.test(k)) { if (k === "0") erase(); else pressDigit(k); e.preventDefault(); }
+  else if (k === "Backspace" || k === "Delete") { erase(); e.preventDefault(); }
+  else if (k === "ArrowLeft" || k === "*") { if (!game.over) { moveActive(-1); render(); } e.preventDefault(); }
+  else if (k === "ArrowRight" || k === "#" || k === "Tab") { if (!game.over) { moveActive(1); render(); } e.preventDefault(); }
+  else if (k === "Enter" || k === " ") { submitGuess(); e.preventDefault(); }
+  else if (k === "+" || k === "=") { buyTime(); e.preventDefault(); }
+  else if (k === "Escape") { passPuzzle(); e.preventDefault(); }
+});
+
+/* ---------- Boot (keeps a game alive across live republishes) ---------- */
+function boot(data) {
+  if (data && data.round && data.game) {
+    round = data.round; game = data.game;
+    show("play");
+    $("s-total").textContent = round.puzzles.length;
+    $("s-idx").textContent = round.index + 1;
+    $("h-cat").textContent = game.puzzle.category;
+    $("h-clue").textContent = game.puzzle.clue;
+    buildReadout(); render();
+    if (game.over) { const last = round.index >= round.puzzles.length - 1; $("btn-guess").textContent = last ? "See results" : "Next track ▶"; renderClock(); }
+    else startTimer();
+  } else {
+    showIntro();
+  }
+}
+if (window.claude && window.claude.hot && window.claude.hot.snapshot) {
+  window.claude.hot.snapshot(() => (round && game ? { round, game } : {}));
+}
+(window.claude && window.claude.hot && window.claude.hot.ready) ? window.claude.hot.ready(boot) : boot((window.claude && window.claude.hot && window.claude.hot.data) || {});
+</script>
+</body>
+</html>
