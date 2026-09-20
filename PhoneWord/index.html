@@ -98,6 +98,18 @@
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--panel-2); color: var(--amber); }
   .seg small { font-family: var(--font-body); font-size: 10px; letter-spacing: .12em; font-weight: 600; text-transform: uppercase; color: var(--ink-dim); }
+  .contest { display: grid; gap: 6px; margin-bottom: 14px; }
+  .contest label { font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+  .contest label b { color: var(--amber); }
+  .contest input {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px 12px;
+    border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  }
+  .contest input:focus { outline: 2px solid var(--amber); outline-offset: 1px; border-color: transparent; }
+  .contest input.bad { border-color: var(--red); }
+  .contest .fine { font-size: 12px; color: var(--ink-dim); line-height: 1.4; }
+  .contest .err { font-size: 12px; color: #ff8a78; min-height: 0; }
+  .contest .err:empty { display: none; }
   .best { font-size: 13px; color: var(--ink-dim); margin-top: 14px; }
   .best b { color: var(--amber); font-family: var(--font-mono); font-size: 16px; }
 
@@ -266,6 +278,12 @@
       <button type="button" data-mode="timed" role="radio" aria-checked="true">Timed<small><span id="r-secs2">120</span>s a track, speed bonus</small></button>
       <button type="button" data-mode="relaxed" role="radio" aria-checked="false">No clock<small>Take your time</small></button>
     </div>
+    <div class="contest" id="contest">
+      <label for="contact">Phone or email <b>— optional</b>, to enter the best-score contest</label>
+      <input id="contact" type="text" inputmode="email" autocomplete="email" placeholder="you@example.com or 250-555-0123" maxlength="120">
+      <div class="err" id="contact-err"></div>
+      <div class="fine">We will only use your contact info for this promotion — then it is erased.</div>
+    </div>
     <button class="btn" id="btn-start">Start the round</button>
     <p class="best" id="best-line" hidden>Your best <span id="best-mode">timed</span> round: <b id="best-score">0</b> pts</p>
   </section>
@@ -338,7 +356,7 @@
 /* =====================================================================
    CONFIG — station staff: tweak these freely
    ===================================================================== */
-const APP_VERSION = 9;   // whole number, bump by one each release — shows in the top bar as v7
+const APP_VERSION = 10;   // whole number, bump by one each release — shows in the top bar as v7
 
 const CONFIG = {
   puzzlesPerRound: 5,
@@ -348,7 +366,7 @@ const CONFIG = {
   pointsPerSolve: 100,
   pointsPerSecondLeft: 1,
   pointsPerTryLeft: 25,
-  promoLine: "Screenshot your final score and send it to CHIR.fm to enter the draw.",
+  contestOpen: true,             // false hides the contact field and the contest note when the promotion ends
   vowelCost: 40,                 // "Buy a vowel" reveals every spot that vowel fills (charged even if it's not in the answer)
   passCost: 0,                   // points deducted for passing on a puzzle (0 = free)
   buyTimeSeconds: 30,            // "Buy time" adds this many seconds...
@@ -424,6 +442,22 @@ let game = null;    // { puzzle, slots:[], active, tries, timeLeft, over, won, p
 let timerId = null;
 let usedIds = new Set();
 let mode = "timed";   // "timed" | "relaxed"
+let contact = "";     // phone or email typed on the start screen; sent with every tracker row
+try { contact = localStorage.getItem("chir-dial-contact") || ""; } catch (e) {}
+
+function looksLikeContact(v) {
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return true;          // email
+  return (v.replace(/\D/g, "").length >= 7) && /^[\d\s()+.-]+$/.test(v); // phone
+}
+function readContact() {
+  const el = $("contact"), err = $("contact-err");
+  const v = el.value.trim();
+  if (v && !looksLikeContact(v)) { err.textContent = "That doesn't look like a phone number or email — fix it or leave it blank."; el.classList.add("bad"); el.focus(); return false; }
+  err.textContent = ""; el.classList.remove("bad");
+  contact = v;
+  try { if (v) localStorage.setItem("chir-dial-contact", v); else localStorage.removeItem("chir-dial-contact"); } catch (e) {}
+  return true;
+}
 try { if (localStorage.getItem("chir-dial-mode") === "relaxed") mode = "relaxed"; } catch (e) {}
 
 function setMode(m) {
@@ -726,6 +760,7 @@ function report(won) {
     seconds: secondsUsed,
     bumps: game.guesses || 0,               // guesses made
     radio: !radio.paused && !radio.error,
+    contact: contact || null,               // contest entry; blank when the player left it out
   });
   try {
     fetch(CONFIG.trackUrl.replace(/\/$/, "") + "/event", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true, mode: "cors" }).catch(() => {});
@@ -783,8 +818,10 @@ function showResults() {
     li.querySelector(".cat").textContent = r.category;
     ul.appendChild(li);
   });
-  $("promo").textContent = CONFIG.promoLine;
-  $("promo").hidden = !CONFIG.promoLine;
+  const promo = $("promo");
+  if (!CONFIG.contestOpen) promo.hidden = true;
+  else if (contact) { promo.hidden = false; promo.textContent = "Entered in the best-score contest as " + contact + ". We will only use your contact info for this promotion — then it is erased."; }
+  else { promo.hidden = false; promo.textContent = "Want in on the best-score contest? Add your phone or email on the start screen before your next round."; }
 }
 
 function showIntro() {
@@ -808,7 +845,10 @@ $("btn-listen").addEventListener("click", radioToggle);
 $("btn-buy").addEventListener("click", buyTime);
 $("btn-pass").addEventListener("click", passPuzzle);
 $("pass-sub").textContent = CONFIG.passCost ? "−" + CONFIG.passCost + " PTS" : "SKIP IT";
-$("btn-start").addEventListener("click", () => { if (CONFIG.playRadioOnStart && radio.paused) radioPlay(); startRound(); });
+$("contest").hidden = !CONFIG.contestOpen;
+$("contact").value = contact;
+$("contact").addEventListener("input", () => { $("contact-err").textContent = ""; $("contact").classList.remove("bad"); });
+$("btn-start").addEventListener("click", () => { if (!readContact()) return; if (CONFIG.playRadioOnStart && radio.paused) radioPlay(); startRound(); });
 $("btn-again").addEventListener("click", startRound);
 $("btn-home").addEventListener("click", showIntro);
 $("btn-guess").addEventListener("click", submitGuess);

@@ -43,10 +43,13 @@ wrangler that ships with npm — nothing to install.
 
 ## Adding Dial-A-Hit to an existing database (do this once)
 
-The table needs the new `game` column, then the Worker needs redeploying:
+The table needs the new `game` and `contact` columns, then the Worker needs redeploying:
 
-    npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN game TEXT NOT NULL DEFAULT 'arrows'; CREATE INDEX IF NOT EXISTS plays_game ON plays (game)"
+    npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN game TEXT NOT NULL DEFAULT 'arrows'; ALTER TABLE plays ADD COLUMN contact TEXT; CREATE INDEX IF NOT EXISTS plays_game ON plays (game)"
     npx wrangler deploy
+
+(If you already added `game` earlier, SQLite will say "duplicate column name: game" — just run the
+`contact` part on its own: `ALTER TABLE plays ADD COLUMN contact TEXT`.)
 
 Existing rows are marked `arrows` automatically. Then add the site Dial-A-Hit is served
 from to `ALLOWED_ORIGINS` in `wrangler.toml` if it isn't already there, and set
@@ -54,13 +57,30 @@ from to `ALLOWED_ORIGINS` in `wrangler.toml` if it isn't already there, and set
 
 Look at one game at a time: `curl "https://runway-tracker.<your-subdomain>.workers.dev/stats?game=dial"`
 
+## Best-score contest (Dial-A-Hit)
+
+Players can type a phone number or email on the start screen; it is sent with every row they
+play (`contact` column) and is **never** returned by `/stats`, which is public. To find the
+winners — each contestant's best round score:
+
+    npx wrangler d1 execute runway-arrows --remote --command "SELECT contact, MAX(bank) AS best_round, COUNT(*) AS puzzles, MIN(ts) AS first_play FROM plays WHERE game='dial' AND contact IS NOT NULL GROUP BY contact ORDER BY best_round DESC LIMIT 20"
+
+(`bank` is the running round score, so its max per player is their best round total.)
+
+The game promises "We will only use your contact info for this promotion — then it is erased."
+When the promotion ends, keep that promise:
+
+    npx wrangler d1 execute runway-arrows --remote --command "UPDATE plays SET contact = NULL"
+
+and set `contestOpen: false` in the game's `CONFIG` so the field disappears.
+
 ## If you created the table before the `bank` column existed
 
     npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN bank INTEGER"
 
 ## Notes
 
-- The games only send: game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio.
+- The games only send: game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio, contact.
   IP, country and timestamp are added by the Worker from the request itself, so they
   can't be spoofed by the client.
 - `ALLOWED_ORIGINS` in `wrangler.toml` lists the sites allowed to post. `null` is what a

@@ -60,13 +60,14 @@ export default {
         seconds: int(b.seconds, 0, 86400),
         bumps: int(b.bumps, 0, 10000),
         radio: b.radio ? 1 : 0,
+        contact: String(b.contact || "").trim().slice(0, 120) || null,   // contest entry (Dial-A-Hit); never returned by /stats
       };
       if (!row.version || row.level === null || row.score === null) return json({ error: "missing fields" }, 400, headers);
 
       await env.DB.prepare(
-        `INSERT INTO plays (ip, country, game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
-      ).bind(row.ip, row.country, row.game, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio).run();
+        `INSERT INTO plays (ip, country, game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio, contact)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)`
+      ).bind(row.ip, row.country, row.game, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio, row.contact).run();
 
       return json({ ok: true }, 200, headers);
     }

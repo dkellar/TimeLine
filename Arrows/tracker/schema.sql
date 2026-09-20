@@ -22,12 +22,15 @@ CREATE TABLE IF NOT EXISTS plays (
   arrows   INTEGER,
   seconds  INTEGER,
   bumps    INTEGER,
-  radio    INTEGER                   -- 1 if CHIR was playing when the level ended
+  radio    INTEGER,                  -- 1 if CHIR was playing when the level ended
+  contact  TEXT                      -- phone or email the player typed to enter a contest (dial only; NULL when left blank).
+                                     -- Personal data: erase when the promotion ends (see README).
 );
 CREATE INDEX IF NOT EXISTS plays_ts ON plays (ts);
 CREATE INDEX IF NOT EXISTS plays_ip ON plays (ip);
 CREATE INDEX IF NOT EXISTS plays_game ON plays (game);
 
--- Already have the table from before the `game` column existed? Run this once instead:
+-- Already have the table from before the `game` / `contact` columns existed? Run this once instead:
 --   ALTER TABLE plays ADD COLUMN game TEXT NOT NULL DEFAULT 'arrows';
+--   ALTER TABLE plays ADD COLUMN contact TEXT;
 --   CREATE INDEX IF NOT EXISTS plays_game ON plays (game);
