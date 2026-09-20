@@ -42,6 +42,7 @@ export default {
         version: String(b.version || "").slice(0, 16),
         level: int(b.level, 1, 100000),
         score: int(b.score, -1000000, 1000000),
+        bank: int(b.bank, -100000000, 100000000),
         mode: b.mode === "risk" ? "risk" : "classic",
         won: b.won ? 1 : 0,
         arrows: int(b.arrows, 0, 10000),
@@ -52,20 +53,22 @@ export default {
       if (!row.version || row.level === null || row.score === null) return json({ error: "missing fields" }, 400, headers);
 
       await env.DB.prepare(
-        `INSERT INTO plays (ip, country, version, level, score, mode, won, arrows, seconds, bumps, radio)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)`
-      ).bind(row.ip, row.country, row.version, row.level, row.score, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio).run();
+        `INSERT INTO plays (ip, country, version, level, score, bank, mode, won, arrows, seconds, bumps, radio)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`
+      ).bind(row.ip, row.country, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio).run();
 
       return json({ ok: true }, 200, headers);
     }
 
     if (request.method === "GET" && url.pathname === "/stats") {
-      const [totals, today, top] = await Promise.all([
+      const [totals, today, top, richest] = await Promise.all([
         env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins, MAX(level) AS top_level FROM plays`).first(),
         env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players FROM plays WHERE ts >= strftime('%Y-%m-%dT00:00:00Z', 'now')`).first(),
-        env.DB.prepare(`SELECT ts, level, score, mode, version, country FROM plays WHERE won = 1 ORDER BY score DESC LIMIT 10`).all(),
+        env.DB.prepare(`SELECT ts, level, score, bank, mode, version, country FROM plays WHERE won = 1 ORDER BY score DESC LIMIT 10`).all(),
+        // Latest balance per player (by IP), highest first.
+        env.DB.prepare(`SELECT ip, country, bank, ts FROM plays WHERE id IN (SELECT MAX(id) FROM plays WHERE bank IS NOT NULL GROUP BY ip) ORDER BY bank DESC LIMIT 10`).all(),
       ]);
-      return json({ totals, today, top_scores: top.results }, 200, headers);
+      return json({ totals, today, top_scores: top.results, richest_players: richest.results }, 200, headers);
     }
 
     return json({ error: "not found" }, 404, headers);

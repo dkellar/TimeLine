@@ -511,7 +511,7 @@
 
 <script>
 (() => {
-  const VERSION = "v36";
+  const VERSION = "v37";
   // Usage tracking: set to your Cloudflare Worker's URL (see tracker/README.md). Empty = off.
   const TRACK_URL = "https://runway-tracker.dave-kellar-ca.workers.dev";
   const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left as [dr, dc]
@@ -1359,7 +1359,7 @@
   function report(won, score) {
     if (!TRACK_URL) return;
     const body = JSON.stringify({
-      version: VERSION, level, score, mode, won,
+      version: VERSION, level, score, bank, mode, won,
       arrows: puzzle.snakes.length, seconds: Math.round(elapsed()),
       bumps: mode === "risk" ? riskBumps : MAX_DROPS - drops,
       radio: radio.dataset.state === "playing",

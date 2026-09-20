@@ -1,7 +1,8 @@
 # Runway Arrows tracker (Cloudflare Worker + D1)
 
 Records one row per finished level: date/time (UTC), player IP, country, game version,
-level, score, mode, win/loss, arrows, seconds, bumps, and whether CHIR was playing.
+level, score, the player's money after that level, mode, win/loss, arrows, seconds,
+bumps, and whether CHIR was playing.
 
 ## One-time setup (about five minutes, all free tier)
 
@@ -38,9 +39,13 @@ wrangler that ships with npm — nothing to install.
 - Browse rows in the Cloudflare dashboard: Storage & Databases → D1 → runway-arrows → Explore data.
 - Or from here: `npx wrangler d1 execute runway-arrows --remote --command "SELECT * FROM plays ORDER BY id DESC LIMIT 20"`
 
+## If you created the table before the `bank` column existed
+
+    npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN bank INTEGER"
+
 ## Notes
 
-- The game only sends: version, level, score, mode, won, arrows, seconds, bumps, radio.
+- The game only sends: version, level, score, bank, mode, won, arrows, seconds, bumps, radio.
   IP, country and timestamp are added by the Worker from the request itself, so they
   can't be spoofed by the client.
 - `ALLOWED_ORIGINS` in `wrangler.toml` lists the sites allowed to post. `null` is what a

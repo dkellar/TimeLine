@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS plays (
   version  TEXT    NOT NULL,         -- game version, e.g. "v36"
   level    INTEGER NOT NULL,
   score    INTEGER NOT NULL,         -- points banked (0 for a loss)
+  bank     INTEGER,                  -- player's money after this level (can be negative)
   mode     TEXT    NOT NULL,         -- "classic" | "risk"
   won      INTEGER NOT NULL,         -- 1 = level cleared, 0 = out of bows / bankrupt
   arrows   INTEGER,                  -- arrows in the puzzle
