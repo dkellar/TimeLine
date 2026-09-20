@@ -259,7 +259,7 @@
     <ul class="rules">
       <li><span class="k">7<small>PQRS</small></span><span>Each digit stands for one of its letters. <span class="sample">7 8 3 3 6</span> could be <b>QUEEN</b>.</span></li>
       <li><span class="k">TAP</span><span>Tap a key to cycle through its letters. Tap <b>*</b> and <b>#</b> to move between letters, <b>0</b> to erase one.</span></li>
-      <li><span class="k">3<small>TRIES</small></span><span>Hit <b>GUESS</b>. Right letters lock in green; wrong ones clear. You get <b id="r-tries">3</b> guesses and <b id="r-secs">60</b> seconds per puzzle.</span></li>
+      <li><span class="k">3<small>TRIES</small></span><span>Hit <b>GUESS</b>. Right letters lock in green; wrong ones clear. You get <b id="r-tries">3</b> guesses and <b id="r-secs">120</b> seconds per puzzle.</span></li>
       <li><span class="k">+30<small>SECS</small></span><span>Stuck? <b>Buy time</b> (+<b id="r-buysecs">30</b>s for <b id="r-buycost">25</b> pts) or <b>buy a vowel</b> (<b id="r-vowelcost">40</b> pts — reveals it everywhere it appears, or nothing if it isn't there). Scores can go negative. <b>Pass</b> reveals the answer and moves on.</span></li>
     </ul>
     <div class="seg" id="mode" role="radiogroup" aria-label="Game mode">
@@ -279,7 +279,7 @@
       </div>
       <div class="clock" id="clock">
         <div class="lbl">Seconds</div>
-        <div class="val" id="s-time">60</div>
+        <div class="val" id="s-time">120</div>
       </div>
       <div class="right">
         <div class="lbl">Score</div>
@@ -338,7 +338,7 @@
 /* =====================================================================
    CONFIG — station staff: tweak these freely
    ===================================================================== */
-const APP_VERSION = 8;   // whole number, bump by one each release — shows in the top bar as v7
+const APP_VERSION = 9;   // whole number, bump by one each release — shows in the top bar as v7
 
 const CONFIG = {
   puzzlesPerRound: 5,
