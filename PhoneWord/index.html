@@ -263,7 +263,7 @@
       <li><span class="k">+30<small>SECS</small></span><span>Stuck? <b>Buy time</b> (+<b id="r-buysecs">30</b>s for <b id="r-buycost">25</b> pts) or <b>buy a vowel</b> (<b id="r-vowelcost">40</b> pts — reveals it everywhere it appears, or nothing if it isn't there). Scores can go negative. <b>Pass</b> reveals the answer and moves on.</span></li>
     </ul>
     <div class="seg" id="mode" role="radiogroup" aria-label="Game mode">
-      <button type="button" data-mode="timed" role="radio" aria-checked="true">Timed<small>60s a track, speed bonus</small></button>
+      <button type="button" data-mode="timed" role="radio" aria-checked="true">Timed<small><span id="r-secs2">120</span>s a track, speed bonus</small></button>
       <button type="button" data-mode="relaxed" role="radio" aria-checked="false">No clock<small>Take your time</small></button>
     </div>
     <button class="btn" id="btn-start">Start the round</button>
@@ -338,22 +338,22 @@
 /* =====================================================================
    CONFIG — station staff: tweak these freely
    ===================================================================== */
-const APP_VERSION = 7;   // whole number, bump by one each release — shows in the top bar as v7
+const APP_VERSION = 8;   // whole number, bump by one each release — shows in the top bar as v7
 
 const CONFIG = {
   puzzlesPerRound: 5,
-  secondsPerPuzzle: 60,
+  secondsPerPuzzle: 120,
   triesPerPuzzle: 3,
   lockCorrectLetters: true,      // after a wrong guess, correct letters stay and wrong ones clear
   pointsPerSolve: 100,
-  pointsPerSecondLeft: 2,
+  pointsPerSecondLeft: 1,
   pointsPerTryLeft: 25,
   promoLine: "Screenshot your final score and send it to CHIR.fm to enter the draw.",
   vowelCost: 40,                 // "Buy a vowel" reveals every spot that vowel fills (charged even if it's not in the answer)
   passCost: 0,                   // points deducted for passing on a puzzle (0 = free)
   buyTimeSeconds: 30,            // "Buy time" adds this many seconds...
   buyTimeCost: 25,               // ...for this many points (score may go negative)
-  maxBonusSeconds: 60,           // time bonus at solve is capped here so bought time can't be farmed for points
+  maxBonusSeconds: 120,          // time bonus at solve is capped here (keep = secondsPerPuzzle) so bought time can't be farmed for points
   streamUrl: "https://stream.aiir.com/iirwxwmjurkuv",   // CHIR.fm live stream (from chir.fm/player)
   trackUrl: "https://runway-tracker.dave-kellar-ca.workers.dev",  // shared CHIR games tracker (Cloudflare Worker + D1); "" turns reporting off
   playRadioOnStart: true,        // start the stream when the player taps Start (browsers need a tap first)
@@ -797,7 +797,7 @@ function showIntro() {
 /* ---------- Wiring ---------- */
 $("ver").textContent = "v" + APP_VERSION;
 $("r-tries").textContent = CONFIG.triesPerPuzzle;
-$("r-secs").textContent = CONFIG.secondsPerPuzzle;
+$("r-secs").textContent = CONFIG.secondsPerPuzzle; $("r-secs2").textContent = CONFIG.secondsPerPuzzle;
 $("r-buysecs").textContent = CONFIG.buyTimeSeconds; $("buy-secs").textContent = CONFIG.buyTimeSeconds;
 $("r-buycost").textContent = CONFIG.buyTimeCost;    $("buy-cost").textContent = CONFIG.buyTimeCost;
 $("r-vowelcost").textContent = CONFIG.vowelCost;    $("vowel-cost").textContent = CONFIG.vowelCost;
