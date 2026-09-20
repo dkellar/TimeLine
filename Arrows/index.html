@@ -505,12 +505,15 @@
     <button class="btn quiet" id="newBtn">New puzzle</button>
     <button class="btn quiet" id="skipBtn">Skip level</button>
     <button class="btn quiet" id="modeBtn">Mode</button>
-    <span class="version" id="version" title="Version">v35</span>
+    <span class="version" id="version" title="Version"></span>
   </div>
 </div>
 
 <script>
 (() => {
+  const VERSION = "v36";
+  // Usage tracking: set to your Cloudflare Worker's URL (see tracker/README.md). Empty = off.
+  const TRACK_URL = "https://runway-tracker.dave-kellar-ca.workers.dev";
   const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left as [dr, dc]
   const U = 10;          // svg units per cell
   const PAD = 1;         // cells of breathing room around the grid
@@ -1351,6 +1354,21 @@
     }
   }
 
+  // Report a finished level to the tracker. Fire-and-forget: the game never waits on it,
+  // and a failure (no network, tracker down) is silent. Date and IP are added server-side.
+  function report(won, score) {
+    if (!TRACK_URL) return;
+    const body = JSON.stringify({
+      version: VERSION, level, score, mode, won,
+      arrows: puzzle.snakes.length, seconds: Math.round(elapsed()),
+      bumps: mode === "risk" ? riskBumps : MAX_DROPS - drops,
+      radio: radio.dataset.state === "playing",
+    });
+    try {
+      fetch(TRACK_URL.replace(/\/$/, "") + "/event", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true, mode: "cors" }).catch(() => {});
+    } catch (e) {}
+  }
+
   function finish(won) {
     over = true;
     stopClock();
@@ -1374,6 +1392,7 @@
       const bonus = listening ? Math.max(2, Math.round(score * LISTEN_BONUS)) : 0;
       bank += score + bonus;
       saveBank();
+      report(true, score);
       scoreEl.innerHTML = `+$${money(score)}<small>${bonus ? `<span class="bonus">+$${money(bonus)} CHIR listener bonus</span> · ` : ""}${isBest ? '<span class="newbest">New best score</span> · ' : "best " + best.score + " · "}${bank < 0 ? "you owe " + dollars(-bank) : "you have " + dollars(bank)}</small>`;
       updateHud();
       const bw = $("bankWrap"); bw.classList.remove("paid"); void bw.offsetWidth; bw.classList.add("paid");
@@ -1386,11 +1405,13 @@
       const shortfall = -livePoints();
       bank -= shortfall;
       saveBank();
+      report(false, -shortfall);
       updateHud();
       scoreEl.hidden = false;
       scoreEl.innerHTML = `−$${money(shortfall)}<small>${bank < 0 ? "you owe " + dollars(-bank) : "you have " + dollars(bank)}</small>`;
       $("cardText").textContent = `${riskBumps} bumps cost ${money(riskPenalty)} points. The counter went ${money(shortfall)} below zero, and that comes out of your wallet.`;
     } else {
+      report(false, 0);
       $("cardText").textContent = `${remaining} ${remaining === 1 ? "path" : "paths"} still on the board.`;
     }
     $("cardBtn").textContent = won ? "Next level" : "Try again";
@@ -1532,6 +1553,7 @@
   $("newBtn").addEventListener("click", startLevel);
   $("skipBtn").addEventListener("click", () => { level++; startLevel(); });
 
+  $("version").textContent = VERSION;
   startLevel();
   if (!seen) showHow();
 })();

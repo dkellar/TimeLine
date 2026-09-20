@@ -1,0 +1,13 @@
+# Runway Arrows usage tracker — Cloudflare Worker + D1 (free tier)
+name = "runway-tracker"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[[d1_databases]]
+binding = "DB"                 # available in the Worker as env.DB
+database_name = "runway-arrows"
+database_id = "b27f4cb1-33be-4445-a726-3a37ac395a55"
+
+[vars]
+# Origins allowed to send events. Add or remove as needed.
+ALLOWED_ORIGINS = "https://dkellar.github.io,http://localhost:8765,null"
