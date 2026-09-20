@@ -98,6 +98,17 @@
   .seg button + button { border-left: 1px solid var(--line); }
   .seg button.on { background: var(--panel-2); color: var(--amber); }
   .seg small { font-family: var(--font-body); font-size: 10px; letter-spacing: .12em; font-weight: 600; text-transform: uppercase; color: var(--ink-dim); }
+  .pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .pick label { display: grid; gap: 4px; font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-dim); font-weight: 600; }
+  .pick select {
+    width: 100%; font: inherit; font-size: 15px; font-weight: 600; padding: 9px 32px 9px 12px; color: var(--ink);
+    background: var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f2b23f' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
+    border: 1px solid var(--line); border-radius: 8px; appearance: none; -webkit-appearance: none;
+  }
+  .pick select:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
+  .feednote { font-size: 12px; color: var(--ink-dim); margin: -4px 0 12px; min-height: 0; }
+  .feednote:empty { display: none; }
+  .feednote.bad { color: #ff8a78; }
   .contest { display: grid; gap: 6px; margin-bottom: 14px; }
   .contest label { font-size: 12px; font-weight: 600; letter-spacing: .04em; }
   .contest label b { color: var(--amber); }
@@ -278,6 +289,38 @@
       <button type="button" data-mode="timed" role="radio" aria-checked="true">Timed<small><span id="r-secs2">120</span>s a track, speed bonus</small></button>
       <button type="button" data-mode="relaxed" role="radio" aria-checked="false">No clock<small>Take your time</small></button>
     </div>
+    <div class="pick" id="pick">
+      <label>Genre
+        <select id="genre">
+          <option value="any">Anything</option>
+          <option value="rock">Rock</option>
+          <option value="classic-rock">Classic rock</option>
+          <option value="pop">Pop</option>
+          <option value="country">Country</option>
+          <option value="folk">Folk</option>
+          <option value="soul">Soul</option>
+          <option value="blues">Blues</option>
+          <option value="metal">Metal</option>
+          <option value="punk">Punk</option>
+          <option value="indie">Indie</option>
+          <option value="dance">Dance</option>
+          <option value="hip-hop">Hip-hop</option>
+          <option value="canadian">Canadian</option>
+        </select>
+      </label>
+      <label>Decade
+        <select id="decade">
+          <option value="any">Any era</option>
+          <option value="60s">60s</option>
+          <option value="70s">70s</option>
+          <option value="80s">80s</option>
+          <option value="90s">90s</option>
+          <option value="2000s">2000s</option>
+          <option value="2010s">2010s</option>
+        </select>
+      </label>
+    </div>
+    <div class="feednote" id="feednote"></div>
     <div class="contest" id="contest">
       <label for="contact">Phone or email <b>— optional</b>, to enter the best-score contest</label>
       <input id="contact" type="text" inputmode="email" autocomplete="email" placeholder="you@example.com or 250-555-0123" maxlength="120">
@@ -356,7 +399,7 @@
 /* =====================================================================
    CONFIG — station staff: tweak these freely
    ===================================================================== */
-const APP_VERSION = 10;   // whole number, bump by one each release — shows in the top bar as v7
+const APP_VERSION = 11;   // whole number, bump by one each release — shows in the top bar as v7
 
 const CONFIG = {
   puzzlesPerRound: 5,
@@ -374,6 +417,8 @@ const CONFIG = {
   maxBonusSeconds: 120,          // time bonus at solve is capped here (keep = secondsPerPuzzle) so bought time can't be farmed for points
   streamUrl: "https://stream.aiir.com/iirwxwmjurkuv",   // CHIR.fm live stream (from chir.fm/player)
   trackUrl: "https://runway-tracker.dave-kellar-ca.workers.dev",  // shared CHIR games tracker (Cloudflare Worker + D1); "" turns reporting off
+  feedOn: true,                  // pull puzzles for the chosen genre/decade from the Worker's /puzzles (Last.fm); false = built-in list only
+  feedTimeoutMs: 6000,           // give up on the feed after this and use the built-in list
   playRadioOnStart: true,        // start the stream when the player taps Start (browsers need a tap first)
 };
 
@@ -482,16 +527,60 @@ function shuffle(arr) {
   return a;
 }
 
+/* ---------- Puzzle pool ---------- */
+// The round draws from `pool`: the built-in PUZZLES unless the feed answered for the chosen
+// genre/decade, in which case it's that list. `usedIds` (answer strings) stops repeats in a session.
+let pool = PUZZLES;
+const feedCache = {};   // "genre|decade" → puzzles, so switching back and forth doesn't refetch
+let feedNoteText = "";
+
 function pickPuzzles(n) {
-  let pool = PUZZLES.map((p, i) => ({ ...p, id: i })).filter(p => !usedIds.has(p.id));
-  if (pool.length < n) { usedIds.clear(); pool = PUZZLES.map((p, i) => ({ ...p, id: i })); }
-  const chosen = shuffle(pool).slice(0, n);
-  chosen.forEach(p => usedIds.add(p.id));
+  const fresh = pool.filter(p => !usedIds.has(p.answer));
+  let avail = fresh.length >= n ? fresh : (usedIds.clear(), pool.slice());
+  const songs = shuffle(avail.filter(p => p.category !== "Artist"));
+  const artists = shuffle(avail.filter(p => p.category === "Artist"));
+  // Mostly songs, with an artist or two mixed in when the pool has them.
+  const wantArtists = Math.min(artists.length, Math.max(0, Math.round(n * 0.3)));
+  const chosen = shuffle(artists.slice(0, wantArtists).concat(songs.slice(0, n - wantArtists)));
+  if (chosen.length < n) chosen.push(...shuffle(avail.filter(p => !chosen.includes(p))).slice(0, n - chosen.length));
+  chosen.forEach(p => usedIds.add(p.answer));
   return chosen;
 }
 
+async function loadPool(genre, decade) {
+  feedNoteText = "";
+  if (!CONFIG.feedOn || !CONFIG.trackUrl) { pool = PUZZLES; return; }
+  const key = genre + "|" + decade;
+  if (feedCache[key]) { pool = feedCache[key]; return; }
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), CONFIG.feedTimeoutMs);
+  try {
+    const r = await fetch(CONFIG.trackUrl.replace(/\/$/, "") + "/puzzles?genre=" + encodeURIComponent(genre) + "&decade=" + encodeURIComponent(decade), { signal: ctrl.signal, mode: "cors" });
+    const j = await r.json();
+    const list = (j.puzzles || []).filter(p => p && /^[A-Z ]+$/.test(p.answer) && p.category && p.clue);
+    if (list.length < CONFIG.puzzlesPerRound) throw new Error(j.error || "not enough puzzles");
+    feedCache[key] = list;
+    pool = list;
+    feedNoteText = j.note ? j.note : "";
+  } catch (e) {
+    pool = PUZZLES;
+    feedNoteText = "Couldn't reach the song list — playing the house playlist instead.";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /* ---------- Round flow ---------- */
-function startRound() {
+async function startRound() {
+  const btn = $("btn-start");
+  if (!screens.intro.hidden) {                       // from the start screen: fetch for the chosen genre/decade
+    const genre = $("genre").value, decade = $("decade").value;
+    try { localStorage.setItem("chir-dial-genre", genre); localStorage.setItem("chir-dial-decade", decade); } catch (e) {}
+    btn.disabled = true; btn.textContent = "Tuning in…";
+    await loadPool(genre, decade);
+    btn.disabled = false; btn.textContent = "Start the round";
+    const fn = $("feednote"); fn.textContent = feedNoteText; fn.className = "feednote" + (pool === PUZZLES && CONFIG.feedOn ? " bad" : "");
+  }
   round = { puzzles: pickPuzzles(CONFIG.puzzlesPerRound), index: 0, score: 0, results: [], timed: mode === "timed" };
   $("s-total").textContent = round.puzzles.length;
   applyModeToPlayScreen();
@@ -845,6 +934,10 @@ $("btn-listen").addEventListener("click", radioToggle);
 $("btn-buy").addEventListener("click", buyTime);
 $("btn-pass").addEventListener("click", passPuzzle);
 $("pass-sub").textContent = CONFIG.passCost ? "−" + CONFIG.passCost + " PTS" : "SKIP IT";
+$("pick").hidden = !CONFIG.feedOn;
+try { $("genre").value = localStorage.getItem("chir-dial-genre") || "any"; $("decade").value = localStorage.getItem("chir-dial-decade") || "any"; } catch (e) {}
+if (!$("genre").value) $("genre").value = "any";
+if (!$("decade").value) $("decade").value = "any";
 $("contest").hidden = !CONFIG.contestOpen;
 $("contact").value = contact;
 $("contact").addEventListener("input", () => { $("contact-err").textContent = ""; $("contact").classList.remove("bad"); });

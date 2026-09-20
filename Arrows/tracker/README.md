@@ -57,6 +57,35 @@ from to `ALLOWED_ORIGINS` in `wrangler.toml` if it isn't already there, and set
 
 Look at one game at a time: `curl "https://runway-tracker.<your-subdomain>.workers.dev/stats?game=dial"`
 
+## Song feed for Dial-A-Hit (Last.fm)
+
+`GET /puzzles?genre=rock&decade=80s` returns a ready-to-play puzzle list built from Last.fm's
+top tracks for those tags — most-listened first, every answer cleaned so it can be dialed on a
+keypad (no digits, no `&`, accents stripped, "(feat. …)" and "- Remaster" tails removed).
+Results are cached at Cloudflare's edge for a day, so Last.fm sees at most a handful of
+requests per genre/decade per day. The game falls back to its built-in list if this fails.
+
+One-time setup:
+
+1. Get a free API key (takes a minute): https://www.last.fm/api/account/create
+   — application name "CHIR Dial-A-Hit", the rest can be left blank. Copy the **API key**
+   (the shared secret is not needed).
+2. Store it as a Worker secret (it is never in the HTML or in git):
+
+       npx wrangler secret put LASTFM_KEY
+
+   paste the key when prompted, then `npx wrangler deploy`.
+3. Try it: `curl "https://runway-tracker.<your-subdomain>.workers.dev/puzzles?genre=rock&decade=80s"`
+
+Genres the game offers: any, rock, classic-rock, pop, country, folk, soul, blues, metal, punk,
+indie, dance, hip-hop, canadian. Decades: any, 60s, 70s, 80s, 90s, 2000s, 2010s. To add one,
+extend `GENRES` / `DECADES` in `src/index.js` (value = the Last.fm tag) and the `<select>`
+in the game. Genre + decade together is an intersection of two tag lists; when that comes
+up short (< 40 tracks) the feed serves the decade alone and says so in `note`.
+
+Last.fm's API is free for non-commercial use; a station promotion is worth a quick note to
+them (https://www.last.fm/api/tos) to be safe.
+
 ## Best-score contest (Dial-A-Hit)
 
 Players can type a phone number or email on the start screen; it is sent with every row they
