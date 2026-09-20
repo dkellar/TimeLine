@@ -1,8 +1,10 @@
-# Runway Arrows tracker (Cloudflare Worker + D1)
+# CHIR games tracker (Cloudflare Worker + D1)
 
-Records one row per finished level: date/time (UTC), player IP, country, game version,
-level, score, the player's money after that level, mode, win/loss, arrows, seconds,
-bumps, and whether CHIR was playing.
+One Worker and one `plays` table shared by **Runway Arrows** and **Dial-A-Hit**. Records one
+row per finished level or puzzle: date/time (UTC), player IP, country, which game (`game`
+column: `arrows` or `dial`), version, level/track, score, bank/round score, mode, win/loss,
+arrows/letters, seconds, bumps/guesses, and whether CHIR was playing. `schema.sql` has the
+column-by-column meaning for each game.
 
 ## One-time setup (about five minutes, all free tier)
 
@@ -39,13 +41,26 @@ wrangler that ships with npm — nothing to install.
 - Browse rows in the Cloudflare dashboard: Storage & Databases → D1 → runway-arrows → Explore data.
 - Or from here: `npx wrangler d1 execute runway-arrows --remote --command "SELECT * FROM plays ORDER BY id DESC LIMIT 20"`
 
+## Adding Dial-A-Hit to an existing database (do this once)
+
+The table needs the new `game` column, then the Worker needs redeploying:
+
+    npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN game TEXT NOT NULL DEFAULT 'arrows'; CREATE INDEX IF NOT EXISTS plays_game ON plays (game)"
+    npx wrangler deploy
+
+Existing rows are marked `arrows` automatically. Then add the site Dial-A-Hit is served
+from to `ALLOWED_ORIGINS` in `wrangler.toml` if it isn't already there, and set
+`trackUrl` in the game's `CONFIG` to the Worker URL.
+
+Look at one game at a time: `curl "https://runway-tracker.<your-subdomain>.workers.dev/stats?game=dial"`
+
 ## If you created the table before the `bank` column existed
 
     npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN bank INTEGER"
 
 ## Notes
 
-- The game only sends: version, level, score, bank, mode, won, arrows, seconds, bumps, radio.
+- The games only send: game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio.
   IP, country and timestamp are added by the Worker from the request itself, so they
   can't be spoofed by the client.
 - `ALLOWED_ORIGINS` in `wrangler.toml` lists the sites allowed to post. `null` is what a

@@ -1,9 +1,17 @@
-// Runway Arrows usage tracker.
-//   POST /event   JSON body from the game → one row in D1
-//   GET  /stats   small JSON summary (plays today / total, top scores) for a quick look
+// CHIR games usage tracker (Runway Arrows + Dial-A-Hit share one table).
+//   POST /event          JSON body from a game → one row in D1. `game` picks the game
+//                        ("arrows" is assumed when missing, so the older Arrows build still works).
+//   GET  /stats[?game=]  small JSON summary (plays today / total, top scores) for a quick look;
+//                        add ?game=dial or ?game=arrows to look at one game only.
 // Everything else → 404. IP and date are taken from the request, never from the client.
 
 const MAX_BODY = 2048;
+
+// Each game's allowed modes; the first is the fallback when the client sends something odd.
+const GAMES = {
+  arrows: ["classic", "risk"],
+  dial: ["timed", "relaxed"],
+};
 
 function cors(request, env) {
   const origin = request.headers.get("Origin") || "";
@@ -36,14 +44,17 @@ export default {
       let b;
       try { b = JSON.parse(raw); } catch { return json({ error: "bad json" }, 400, headers); }
 
+      const game = GAMES[b.game] ? b.game : "arrows";
+      const modes = GAMES[game];
       const row = {
         ip: request.headers.get("CF-Connecting-IP") || null,
         country: (request.cf && request.cf.country) || null,
+        game,
         version: String(b.version || "").slice(0, 16),
         level: int(b.level, 1, 100000),
         score: int(b.score, -1000000, 1000000),
         bank: int(b.bank, -100000000, 100000000),
-        mode: b.mode === "risk" ? "risk" : "classic",
+        mode: modes.includes(b.mode) ? b.mode : modes[0],
         won: b.won ? 1 : 0,
         arrows: int(b.arrows, 0, 10000),
         seconds: int(b.seconds, 0, 86400),
@@ -53,22 +64,27 @@ export default {
       if (!row.version || row.level === null || row.score === null) return json({ error: "missing fields" }, 400, headers);
 
       await env.DB.prepare(
-        `INSERT INTO plays (ip, country, version, level, score, bank, mode, won, arrows, seconds, bumps, radio)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)`
-      ).bind(row.ip, row.country, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio).run();
+        `INSERT INTO plays (ip, country, game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)`
+      ).bind(row.ip, row.country, row.game, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio).run();
 
       return json({ ok: true }, 200, headers);
     }
 
     if (request.method === "GET" && url.pathname === "/stats") {
-      const [totals, today, top, richest] = await Promise.all([
-        env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins, MAX(level) AS top_level FROM plays`).first(),
-        env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players FROM plays WHERE ts >= strftime('%Y-%m-%dT00:00:00Z', 'now')`).first(),
-        env.DB.prepare(`SELECT ts, level, score, bank, mode, version, country FROM plays WHERE won = 1 ORDER BY score DESC LIMIT 10`).all(),
+      // Optional ?game=arrows|dial narrows every figure to one game; otherwise it's everything.
+      const g = url.searchParams.get("game");
+      const where = GAMES[g] ? `WHERE game = '${g}'` : "";
+      const and = GAMES[g] ? `AND game = '${g}'` : "";
+      const [byGame, totals, today, top, richest] = await Promise.all([
+        env.DB.prepare(`SELECT game, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins FROM plays GROUP BY game`).all(),
+        env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins, MAX(level) AS top_level FROM plays ${where}`).first(),
+        env.DB.prepare(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players FROM plays WHERE ts >= strftime('%Y-%m-%dT00:00:00Z', 'now') ${and}`).first(),
+        env.DB.prepare(`SELECT ts, game, level, score, bank, mode, version, country FROM plays WHERE won = 1 ${and} ORDER BY score DESC LIMIT 10`).all(),
         // Latest balance per player (by IP), highest first.
-        env.DB.prepare(`SELECT ip, country, bank, ts FROM plays WHERE id IN (SELECT MAX(id) FROM plays WHERE bank IS NOT NULL GROUP BY ip) ORDER BY bank DESC LIMIT 10`).all(),
+        env.DB.prepare(`SELECT ip, country, game, bank, ts FROM plays WHERE id IN (SELECT MAX(id) FROM plays WHERE bank IS NOT NULL ${and} GROUP BY ip) ORDER BY bank DESC LIMIT 10`).all(),
       ]);
-      return json({ totals, today, top_scores: top.results, richest_players: richest.results }, 200, headers);
+      return json({ game: GAMES[g] ? g : "all", by_game: byGame.results, totals, today, top_scores: top.results, richest_players: richest.results }, 200, headers);
     }
 
     return json({ error: "not found" }, 404, headers);

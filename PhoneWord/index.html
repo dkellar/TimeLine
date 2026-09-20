@@ -93,6 +93,11 @@
   }
   .rules .k small { display: block; font-family: var(--font-body); font-size: 9px; letter-spacing: .15em; font-weight: 600; }
   .sample { font-family: var(--font-mono); color: var(--lcd-ink); background: var(--lcd); padding: 2px 8px; border-radius: 4px; letter-spacing: .1em; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .seg button { background: var(--panel); color: var(--ink-dim); border: 0; padding: 10px 8px; font-family: var(--font-display); font-size: 19px; letter-spacing: .1em; display: grid; gap: 2px; line-height: 1; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button.on { background: var(--panel-2); color: var(--amber); }
+  .seg small { font-family: var(--font-body); font-size: 10px; letter-spacing: .12em; font-weight: 600; text-transform: uppercase; color: var(--ink-dim); }
   .best { font-size: 13px; color: var(--ink-dim); margin-top: 14px; }
   .best b { color: var(--amber); font-family: var(--font-mono); font-size: 16px; }
 
@@ -106,7 +111,9 @@
   .btn.secondary { background: var(--panel-2); box-shadow: 0 4px 0 #0f1117; }
   .btn.secondary:active { box-shadow: 0 1px 0 #0f1117; }
   .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; }
-  .actions { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 10px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 8px; }
+  .actions.relaxed { grid-template-columns: 1fr 1fr 1.6fr; }
+  .actions .btn { padding-inline: 6px; }
   .btn.pass { background: transparent; box-shadow: none; border: 1px solid var(--line); color: var(--ink-dim); font-size: 18px; padding-inline: 10px; display: grid; gap: 2px; line-height: 1; }
   .btn.pass:active { transform: none; background: var(--panel); }
   .btn.pass small { font-family: var(--font-body); font-size: 10px; letter-spacing: .15em; font-weight: 600; }
@@ -166,7 +173,14 @@
   .slot.wrong .c { animation: flashwrong .5s ease; }
   .slot.reveal .c { background: #5a2a24; border-color: var(--red); color: #ffd9d3; }
   @keyframes flashwrong { 0%,60% { background: #6a2a22; border-color: var(--red); } 100% { background: rgba(0,0,0,.25); } }
-  .msg { min-height: 20px; text-align: center; font-size: 13px; line-height: 20px; color: var(--ink-dim); margin-bottom: 8px; }
+  .msg { min-height: 26px; text-align: center; font-size: 13px; line-height: 26px; color: var(--ink-dim); margin-bottom: 6px; }
+  .msg.picker { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; line-height: 1; }
+  .msg.picker .q { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; margin-right: 4px; }
+  .chip { border: 0; border-radius: 5px; padding: 4px 10px; background: var(--key); color: var(--key-ink); font-family: var(--font-display); font-size: 18px; box-shadow: 0 2px 0 var(--key-edge); }
+  .chip:active { transform: translateY(2px); box-shadow: none; }
+  .chip[disabled] { opacity: .35; cursor: not-allowed; }
+  .chip.x { background: transparent; color: var(--ink-dim); box-shadow: none; border: 1px solid var(--line); }
+  .clock.off .val { color: var(--ink-dim); }
   .msg.good { color: var(--green); font-weight: 600; }
   .msg.bad { color: #ff8a78; }
   .shake { animation: shake .35s ease; }
@@ -246,11 +260,14 @@
       <li><span class="k">7<small>PQRS</small></span><span>Each digit stands for one of its letters. <span class="sample">7 8 3 3 6</span> could be <b>QUEEN</b>.</span></li>
       <li><span class="k">TAP</span><span>Tap a key to cycle through its letters. Tap <b>*</b> and <b>#</b> to move between letters, <b>0</b> to erase one.</span></li>
       <li><span class="k">3<small>TRIES</small></span><span>Hit <b>GUESS</b>. Right letters lock in green; wrong ones clear. You get <b id="r-tries">3</b> guesses and <b id="r-secs">60</b> seconds per puzzle.</span></li>
-      <li><span class="k">+30<small>SECS</small></span><span>Running out of clock? <b>Buy time</b>: +<b id="r-buysecs">30</b> seconds for <b id="r-buycost">25</b> points. Your score can go negative, so spend wisely.</span></li>
-      <li><span class="k">PASS</span><span>No clue at all? <b>Pass</b> reveals the answer and moves to the next track — no points, and the clock stops eating your bonus elsewhere.</span></li>
+      <li><span class="k">+30<small>SECS</small></span><span>Stuck? <b>Buy time</b> (+<b id="r-buysecs">30</b>s for <b id="r-buycost">25</b> pts) or <b>buy a vowel</b> (<b id="r-vowelcost">40</b> pts — reveals it everywhere it appears, or nothing if it isn't there). Scores can go negative. <b>Pass</b> reveals the answer and moves on.</span></li>
     </ul>
+    <div class="seg" id="mode" role="radiogroup" aria-label="Game mode">
+      <button type="button" data-mode="timed" role="radio" aria-checked="true">Timed<small>60s a track, speed bonus</small></button>
+      <button type="button" data-mode="relaxed" role="radio" aria-checked="false">No clock<small>Take your time</small></button>
+    </div>
     <button class="btn" id="btn-start">Start the round</button>
-    <p class="best" id="best-line" hidden>Your best round: <b id="best-score">0</b> pts</p>
+    <p class="best" id="best-line" hidden>Your best <span id="best-mode">timed</span> round: <b id="best-score">0</b> pts</p>
   </section>
 
   <!-- ============ PLAY ============ -->
@@ -293,8 +310,9 @@
       <button class="key fn" data-key="0" aria-label="Erase letter"><span class="n">0</span><span class="l">ERASE</span></button>
       <button class="key fn" data-key="#" aria-label="Next letter"><span class="n">#</span><span class="l">NEXT ▶</span></button>
     </div>
-    <div class="actions">
+    <div class="actions" id="actions">
       <button class="btn pass" id="btn-pass" type="button">Pass<small id="pass-sub">SKIP IT</small></button>
+      <button class="btn buy" id="btn-vowel" type="button">Vowel<small>−<span id="vowel-cost">40</span> PTS</small></button>
       <button class="btn buy" id="btn-buy" type="button">+<span id="buy-secs">30</span>s<small>−<span id="buy-cost">25</span> PTS</small></button>
       <button class="btn" id="btn-guess">Guess</button>
     </div>
@@ -320,7 +338,7 @@
 /* =====================================================================
    CONFIG — station staff: tweak these freely
    ===================================================================== */
-const APP_VERSION = "1.4.0";   // bump when you change the game — shows in the top bar
+const APP_VERSION = 7;   // whole number, bump by one each release — shows in the top bar as v7
 
 const CONFIG = {
   puzzlesPerRound: 5,
@@ -331,11 +349,13 @@ const CONFIG = {
   pointsPerSecondLeft: 2,
   pointsPerTryLeft: 25,
   promoLine: "Screenshot your final score and send it to CHIR.fm to enter the draw.",
+  vowelCost: 40,                 // "Buy a vowel" reveals every spot that vowel fills (charged even if it's not in the answer)
   passCost: 0,                   // points deducted for passing on a puzzle (0 = free)
   buyTimeSeconds: 30,            // "Buy time" adds this many seconds...
   buyTimeCost: 25,               // ...for this many points (score may go negative)
   maxBonusSeconds: 60,           // time bonus at solve is capped here so bought time can't be farmed for points
   streamUrl: "https://stream.aiir.com/iirwxwmjurkuv",   // CHIR.fm live stream (from chir.fm/player)
+  trackUrl: "https://runway-tracker.dave-kellar-ca.workers.dev",  // shared CHIR games tracker (Cloudflare Worker + D1); "" turns reporting off
   playRadioOnStart: true,        // start the stream when the player taps Start (browsers need a tap first)
 };
 
@@ -403,6 +423,19 @@ let round = null;   // { puzzles:[], index, score, results:[] }
 let game = null;    // { puzzle, slots:[], active, tries, timeLeft, over, won, points }
 let timerId = null;
 let usedIds = new Set();
+let mode = "timed";   // "timed" | "relaxed"
+try { if (localStorage.getItem("chir-dial-mode") === "relaxed") mode = "relaxed"; } catch (e) {}
+
+function setMode(m) {
+  mode = m;
+  try { localStorage.setItem("chir-dial-mode", m); } catch (e) {}
+  document.querySelectorAll("#mode button").forEach(b => { const on = b.dataset.mode === m; b.classList.toggle("on", on); b.setAttribute("aria-checked", on ? "true" : "false"); });
+  const best = loadBest();
+  $("best-line").hidden = !best;
+  $("best-score").textContent = best;
+  $("best-mode").textContent = m === "relaxed" ? "no clock" : "timed";
+}
+function timed() { return round ? round.timed : mode === "timed"; }
 
 function show(name) {
   for (const k in screens) screens[k].hidden = (k !== name);
@@ -425,8 +458,9 @@ function pickPuzzles(n) {
 
 /* ---------- Round flow ---------- */
 function startRound() {
-  round = { puzzles: pickPuzzles(CONFIG.puzzlesPerRound), index: 0, score: 0, results: [] };
+  round = { puzzles: pickPuzzles(CONFIG.puzzlesPerRound), index: 0, score: 0, results: [], timed: mode === "timed" };
   $("s-total").textContent = round.puzzles.length;
+  applyModeToPlayScreen();
   show("play");
   loadPuzzle();
 }
@@ -440,7 +474,7 @@ function loadPuzzle() {
     if (ch === " ") { word++; continue; }
     slots.push({ answer: ch, digit: LETTER_TO_DIGIT[ch], ch: "", locked: false, word });
   }
-  game = { puzzle, slots, active: 0, tries: CONFIG.triesPerPuzzle, timeLeft: CONFIG.secondsPerPuzzle, over: false, won: false, points: 0 };
+  game = { puzzle, slots, active: 0, tries: CONFIG.triesPerPuzzle, timeLeft: CONFIG.secondsPerPuzzle, over: false, won: false, points: 0, startedAt: Date.now(), guesses: 0, boughtSeconds: 0 };
 
   $("s-idx").textContent = round.index + 1;
   $("s-score").textContent = round.score;
@@ -454,9 +488,19 @@ function loadPuzzle() {
   startTimer();
 }
 
+function applyModeToPlayScreen() {
+  const t = timed();
+  $("btn-buy").hidden = !t;
+  $("actions").classList.toggle("relaxed", !t);
+  $("timebar").hidden = !t;
+  $("clock").classList.toggle("off", !t);
+  $("clock").querySelector(".lbl").textContent = t ? "Seconds" : "Clock";
+}
+
 function startTimer() {
   stopTimer();
   renderClock();
+  if (!timed()) return;
   timerId = setInterval(() => {
     game.timeLeft--;
     renderClock();
@@ -466,6 +510,7 @@ function startTimer() {
 function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
 
 function renderClock() {
+  if (!timed()) { $("s-time").textContent = "∞"; return; }
   $("s-time").textContent = game.timeLeft;
   $("timefill").style.width = Math.min(100, 100 * game.timeLeft / CONFIG.secondsPerPuzzle) + "%";
   const warn = game.timeLeft <= 10 && !game.over;
@@ -506,6 +551,7 @@ function render() {
   $("s-score").classList.toggle("neg", round.score < 0);
   $("btn-buy").disabled = game.over;
   $("btn-pass").disabled = game.over;
+  $("btn-vowel").disabled = game.over;
 }
 
 function setMsg(text, kind) { const m = $("msg"); m.textContent = text; m.className = "msg" + (kind ? " " + kind : ""); }
@@ -572,6 +618,7 @@ function submitGuess() {
   if (game.over) { advance(); return; }
   if (game.slots.some(s => !s.ch)) { setMsg("Fill in every letter first", "bad"); shake($("lcd")); return; }
   const nodes = $("readout").querySelectorAll(".slot");
+  game.guesses = (game.guesses || 0) + 1;
   let correct = 0;
   game.slots.forEach((s, i) => {
     if (s.ch === s.answer) { correct++; if (CONFIG.lockCorrectLetters) s.locked = true; }
@@ -592,15 +639,16 @@ function endPuzzle(won, reason) {
   const nodes = $("readout").querySelectorAll(".slot");
   game.slots.forEach((s, i) => { s.ch = s.answer; s.locked = won; nodes[i].classList.toggle("reveal", !won); nodes[i].classList.remove("wrong"); });
   if (won) {
-    const bonusSecs = Math.min(game.timeLeft, CONFIG.maxBonusSeconds);
+    const bonusSecs = timed() ? Math.min(game.timeLeft, CONFIG.maxBonusSeconds) : 0;
     game.points = CONFIG.pointsPerSolve + bonusSecs * CONFIG.pointsPerSecondLeft + game.tries * CONFIG.pointsPerTryLeft;
     round.score += game.points;
-    setMsg("Nailed it! +" + game.points + " pts (" + game.timeLeft + "s left)", "good");
+    setMsg("Nailed it! +" + game.points + " pts" + (timed() ? " (" + game.timeLeft + "s left)" : ""), "good");
   } else {
     const why = reason === "time" ? "Time's up!" : reason === "pass" ? "Passed." : "Out of tries.";
     setMsg(why + " It was " + game.puzzle.answer + (reason === "pass" && CONFIG.passCost ? " (−" + CONFIG.passCost + " pts)" : ""), "bad");
   }
   round.results.push({ answer: game.puzzle.answer, category: game.puzzle.category, won, passed: reason === "pass", points: game.points });
+  report(won);
   renderClock();
   render();
   const last = round.index >= round.puzzles.length - 1;
@@ -614,14 +662,74 @@ function passPuzzle() {
 }
 
 function buyTime() {
-  if (!game || game.over) return;
+  if (!game || game.over || !timed()) return;
   game.timeLeft += CONFIG.buyTimeSeconds;
   round.score -= CONFIG.buyTimeCost;
   game.bought = (game.bought || 0) + 1;
+  game.boughtSeconds = (game.boughtSeconds || 0) + CONFIG.buyTimeSeconds;
   setMsg("+" + CONFIG.buyTimeSeconds + " seconds for " + CONFIG.buyTimeCost + " pts", "good");
   const c = $("clock"); c.classList.add("bonus"); setTimeout(() => c.classList.remove("bonus"), 900);
   renderClock();
   render();
+}
+
+/* ---------- Buy a vowel ---------- */
+function openVowelPicker() {
+  if (!game || game.over) return;
+  const m = $("msg");
+  m.className = "msg picker"; m.innerHTML = "";
+  const q = document.createElement("span"); q.className = "q"; q.textContent = "Which vowel? −" + CONFIG.vowelCost;
+  m.appendChild(q);
+  for (const v of "AEIOU") {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.textContent = v;
+    // only grey out a vowel that's already fully revealed — never leak which ones are absent
+    const inAnswer = game.slots.some(x => x.answer === v);
+    b.disabled = inAnswer && game.slots.every(x => x.answer !== v || x.locked);
+    b.addEventListener("click", () => buyVowel(v));
+    m.appendChild(b);
+  }
+  const x = document.createElement("button"); x.type = "button"; x.className = "chip x"; x.textContent = "✕"; x.setAttribute("aria-label", "Cancel");
+  x.addEventListener("click", () => setMsg(""));
+  m.appendChild(x);
+}
+function buyVowel(v) {
+  if (!game || game.over) return;
+  round.score -= CONFIG.vowelCost;
+  let n = 0;
+  game.slots.forEach(x => { if (x.answer === v && !x.locked) { x.ch = v; x.locked = true; n++; } });
+  if (n === 0) setMsg("No " + v + " in this one — " + CONFIG.vowelCost + " pts gone", "bad");
+  else setMsg(v + " revealed in " + n + (n === 1 ? " spot" : " spots") + " (−" + CONFIG.vowelCost + ")", "good");
+  const first = findSlot(game.active, x => !x.locked);
+  if (first < 0) { render(); endPuzzle(true); return; }   // vowels filled the last gaps
+  game.active = first;
+  render();
+}
+
+/* ---------- Tracker ---------- */
+// Report a finished puzzle to the shared CHIR tracker (same Worker + D1 table as Runway Arrows,
+// `game: "dial"` tells the rows apart). Fire-and-forget: the game never waits on it and a
+// failure is silent. Date, IP and country are added server-side.
+function report(won) {
+  if (!CONFIG.trackUrl) return;
+  const secondsUsed = timed()
+    ? CONFIG.secondsPerPuzzle + (game.boughtSeconds || 0) - Math.max(0, game.timeLeft)
+    : Math.round((Date.now() - (game.startedAt || Date.now())) / 1000);
+  const body = JSON.stringify({
+    game: "dial",
+    version: "v" + APP_VERSION,
+    level: round.index + 1,                 // track number in the round
+    score: game.points,                     // points for this puzzle (0 for a miss or pass)
+    bank: round.score,                      // round score so far (can be negative)
+    mode: timed() ? "timed" : "relaxed",
+    won,
+    arrows: game.slots.length,              // letters in the answer
+    seconds: secondsUsed,
+    bumps: game.guesses || 0,               // guesses made
+    radio: !radio.paused && !radio.error,
+  });
+  try {
+    fetch(CONFIG.trackUrl.replace(/\/$/, "") + "/event", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true, mode: "cors" }).catch(() => {});
+  } catch (e) {}
 }
 
 /* ---------- Radio ---------- */
@@ -651,15 +759,16 @@ function advance() {
 }
 
 /* ---------- Results ---------- */
-function loadBest() { try { return Number(localStorage.getItem("chir-dial-best") || 0); } catch (e) { return 0; } }
-function saveBest(v) { try { localStorage.setItem("chir-dial-best", String(v)); } catch (e) {} }
+function bestKey() { return timed() ? "chir-dial-best" : "chir-dial-best-relaxed"; }
+function loadBest() { try { return Number(localStorage.getItem(bestKey()) || 0); } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem(bestKey(), String(v)); } catch (e) {} }
 
 function showResults() {
   show("results");
   const solved = round.results.filter(r => r.won).length;
   $("final-score").textContent = round.score;
   const best = loadBest();
-  let sub = solved + " of " + round.results.length + " decoded";
+  let sub = solved + " of " + round.results.length + " decoded · " + (round.timed ? "timed" : "no clock");
   if (round.score > best) { saveBest(round.score); sub += " · New personal best!"; }
   else if (best) sub += " · Best: " + best;
   $("final-sub").textContent = sub;
@@ -680,10 +789,9 @@ function showResults() {
 
 function showIntro() {
   stopTimer();
+  round = null; game = null;
   show("intro");
-  const best = loadBest();
-  $("best-line").hidden = !best;
-  $("best-score").textContent = best;
+  setMode(mode);
 }
 
 /* ---------- Wiring ---------- */
@@ -692,6 +800,9 @@ $("r-tries").textContent = CONFIG.triesPerPuzzle;
 $("r-secs").textContent = CONFIG.secondsPerPuzzle;
 $("r-buysecs").textContent = CONFIG.buyTimeSeconds; $("buy-secs").textContent = CONFIG.buyTimeSeconds;
 $("r-buycost").textContent = CONFIG.buyTimeCost;    $("buy-cost").textContent = CONFIG.buyTimeCost;
+$("r-vowelcost").textContent = CONFIG.vowelCost;    $("vowel-cost").textContent = CONFIG.vowelCost;
+$("btn-vowel").addEventListener("click", openVowelPicker);
+$("mode").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setMode(b.dataset.mode); });
 $("btn-listen").hidden = !CONFIG.streamUrl;
 $("btn-listen").addEventListener("click", radioToggle);
 $("btn-buy").addEventListener("click", buyTime);
@@ -728,7 +839,9 @@ document.addEventListener("keydown", e => {
 function boot(data) {
   if (data && data.round && data.game) {
     round = data.round; game = data.game;
+    if (round.timed === undefined) round.timed = true;
     show("play");
+    applyModeToPlayScreen();
     $("s-total").textContent = round.puzzles.length;
     $("s-idx").textContent = round.index + 1;
     $("h-cat").textContent = game.puzzle.category;
