@@ -511,7 +511,7 @@
 
 <script>
 (() => {
-  const VERSION = "v37";
+  const VERSION = "v38";
   // Usage tracking: set to your Cloudflare Worker's URL (see tracker/README.md). Empty = off.
   const TRACK_URL = "https://runway-tracker.dave-kellar-ca.workers.dev";
   const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left as [dr, dc]
@@ -755,20 +755,22 @@
     src.connect(hp).connect(lp).connect(g).connect(ac.destination);
     src.start(t); src.stop(t + dur);
   }
-  function thunk() {
+  // `level` scales it down for a free re-bump on an arrow you've already been charged for.
+  function thunk(level) {
     if (!soundOn) return;
+    const v = level === undefined ? 1 : level;
     const ac = ctx(), t = ac.currentTime;
     // Body: a low tone that drops fast, like wood on wood.
     const osc = ac.createOscillator(); osc.type = "triangle";
     osc.frequency.setValueAtTime(160, t); osc.frequency.exponentialRampToValueAtTime(48, t + 0.13);
     const og = ac.createGain();
-    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.6, t + 0.008); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.6 * v, t + 0.008); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     osc.connect(og).connect(ac.destination); osc.start(t); osc.stop(t + 0.2);
     // Click: a few milliseconds of dull noise on the impact.
     const src = ac.createBufferSource(); src.buffer = noiseBuffer(ac, 0.05);
     const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
     const ng = ac.createGain();
-    ng.gain.setValueAtTime(0.5, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    ng.gain.setValueAtTime(0.5 * v, t); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
     src.connect(lp).connect(ng).connect(ac.destination); src.start(t); src.stop(t + 0.05);
   }
   // A short tune: notes as [frequency, start, length] in seconds, soft-edged so they don't click.
@@ -1319,24 +1321,29 @@
       // ready to leave on its own once the way is clear.
       const track = trackOf(s), myGen = gen;
       animating.set(id, performance.now());
-      if (mode === "risk") {
-        riskPenalty += bumpCost(riskBumps); riskBumps++;
-        drops = Math.max(0, MAX_DROPS - riskBumps); // only drives the red background here
-        const w = $("pointsWrap"); w.classList.remove("hit"); void w.offsetWidth; w.classList.add("hit");
-      } else {
-        drops--;
+      // An arrow you've already been charged for is orange; tapping it again while it's
+      // still blocked costs nothing — it just thuds so you know it's still stuck.
+      const repeat = armed.has(id);
+      if (!repeat) {
+        if (mode === "risk") {
+          riskPenalty += bumpCost(riskBumps); riskBumps++;
+          drops = Math.max(0, MAX_DROPS - riskBumps); // only drives the red background here
+          const w = $("pointsWrap"); w.classList.remove("hit"); void w.offsetWidth; w.classList.add("hit");
+        } else {
+          drops--;
+        }
       }
       // The moment the last bow (or the last point) goes, the game is over — lock out further
       // taps now, and show the card once this bump has played out. Otherwise a quick second
       // tap during the recoil could push the count below zero and the level would never end.
-      const busted = mode === "risk" ? livePoints() < 0 : drops <= 0;
+      const busted = repeat ? false : (mode === "risk" ? livePoints() < 0 : drops <= 0);
       if (busted) over = true;
       updateHud();
       armed.add(id);
       g.classList.add("armed");
-      const reach = free + 0.55; // even with no gap, a clear lunge before the recoil
+      const reach = free + (repeat ? 0.3 : 0.55); // even with no gap, a clear lunge before the recoil
       slide(s, track, 0, reach, Math.max(110, (reach / SPEED) * 1000), easeIn, null, () => {
-        thunk();
+        thunk(repeat ? 0.45 : 1);
         const b = els[blocker];
         if (b) {
           b.style.setProperty("--jx", DIRS[s.d][1] * 2.2 + "px");
