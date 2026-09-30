@@ -58,7 +58,7 @@
   body {
     margin: 0;
     background: var(--ground);
-    background: color-mix(in srgb, var(--ground) calc(100% - var(--lost) * 30%), #B8382A);
+    background: color-mix(in srgb, var(--ground) calc(100% - var(--lost) * 12%), #B8382A);
     transition: background 500ms ease;
     color: var(--text);
     font-family: var(--body);
@@ -227,6 +227,8 @@
   .radio-text { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; flex: 1; }
   .radio-name { font-family: var(--display); font-weight: 700; font-size: 15px; color: #9E1616; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .radio-text { height: 36px; justify-content: center; }
+  :root[data-theme="dark"] .snake.hint .line, :root[data-theme="dark"] .snake.hint .head { stroke: #57C777; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .snake.hint .line, :root:not([data-theme="light"]) .snake.hint .head { stroke: #57C777; } }
   :root[data-theme="dark"] .radio-name { color: #F08A8A; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .radio-name { color: #F08A8A; } }
   .radio-sub { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -292,7 +294,9 @@
   /* Hover follows the same nearest-arrow rule as taps, so what lights up is what a click hits. */
   .snake.near .line, .snake.near .head { stroke: var(--accent); }
   .snake.armed .line, .snake.armed .head { stroke: #E8842A; }
-  .snake.hint .line, .snake.hint .head { stroke: var(--accent); animation: blink 500ms ease 3; }
+  /* A paid-for hint stays marked: the arrow turns green and keeps that colour until it leaves. */
+  .snake.hint .line, .snake.hint .head { stroke: #2F9E44; }
+  .snake.hint.flash .line, .snake.hint.flash .head { animation: blink 500ms ease 3; }
   .snake.hit-shake { animation: jiggle 260ms ease; }
   /* The arrow that stopped a tapped one lights up red for a moment: "this is in the way". */
   .snake.blocker .line, .snake.blocker .head { stroke: #C62828; animation: blockflash 900ms ease; }
@@ -404,7 +408,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .snake.hint .line, .snake.hint .head, .snake.hit-shake { animation-duration: 100ms; }
+    .snake.hint.flash .line, .snake.hint.flash .head, .snake.hit-shake { animation-duration: 100ms; }
     .overlay { transition: none; }
   }
 </style>
@@ -511,7 +515,7 @@
 
 <script>
 (() => {
-  const VERSION = "v38";
+  const VERSION = "v39";
   // Usage tracking: set to your Cloudflare Worker's URL (see tracker/README.md). Empty = off.
   const TRACK_URL = "https://runway-tracker.dave-kellar-ca.workers.dev";
   const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]]; // up, right, down, left as [dr, dc]
@@ -1436,8 +1440,8 @@
     saveBank();
     updateHud();
     const g = els[clear[rand(clear.length)].id];
-    g.classList.remove("hint"); void g.getBBox(); g.classList.add("hint");
-    setTimeout(() => g.classList.remove("hint"), 1600);
+    g.classList.remove("hint", "flash"); void g.getBBox(); g.classList.add("hint", "flash");
+    setTimeout(() => g.classList.remove("flash"), 1600); // stop blinking, stay green
   }
 
   $("hintBtn").addEventListener("click", hint);
