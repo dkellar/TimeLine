@@ -7,6 +7,9 @@
 //                        Dial-A-Hit puzzle list built from Last.fm's top tracks for those tags,
 //                        cleaned so every answer can be dialed on a keypad. Needs the LASTFM_KEY
 //                        secret (`npx wrangler secret put LASTFM_KEY`). Cached at the edge for a day.
+//   POST /query          {"sql": "SELECT …"} → {columns, rows} for the GameStats page. Needs
+//                        "Authorization: Bearer <ADMIN_KEY>" (`npx wrangler secret put ADMIN_KEY`).
+//                        Read-only: one SELECT / WITH statement, at most MAX_ROWS rows back.
 // Everything else → 404. IP and date are taken from the request, never from the client.
 
 const MAX_BODY = 2048;
@@ -24,7 +27,7 @@ function cors(request, env) {
   return {
     "Access-Control-Allow-Origin": ok ? origin : allowed[0] || "",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
   };
@@ -34,6 +37,38 @@ const json = (data, status, headers) =>
   new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json", ...headers } });
 
 const int = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) && n >= lo && n <= hi ? Math.round(n) : null; };
+
+/* ---------------- Read-only queries (GameStats page) ---------------- */
+
+const MAX_SQL = 4000, MAX_ROWS = 1000;
+const WRITES = /\b(insert|update|delete|replace|drop|alter|create|attach|detach|pragma|vacuum|reindex|analyze|returning|savepoint|release|rollback|commit|begin)\b/i;
+
+// Compare the bearer token with ADMIN_KEY without leaking where they differ.
+async function authorized(request, env) {
+  const key = env.ADMIN_KEY || "";
+  const got = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!key || !got) return false;
+  const enc = new TextEncoder();
+  const [a, b] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(key)), crypto.subtle.digest("SHA-256", enc.encode(got))]);
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+
+// null if the statement is a single read; otherwise why not. Strings and comments are blanked
+// first so a word like 'delete' inside a quoted value doesn't trip the check.
+function readOnlyProblem(sql) {
+  const bare = sql
+    .replace(/'(?:[^']|'')*'/g, "''")
+    .replace(/"(?:[^"]|"")*"/g, '""')
+    .replace(/--[^\n]*/g, " ")
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .trim()
+    .replace(/;\s*$/, "");
+  if (!/^(select|with)\b/i.test(bare)) return "only SELECT (or WITH … SELECT) queries are allowed";
+  if (bare.includes(";")) return "one statement at a time";
+  const w = bare.match(WRITES);
+  if (w) return "'" + w[1].toUpperCase() + "' isn't allowed here — this page is read-only";
+  return null;
+}
 
 /* ---------------- Puzzle feed (Last.fm) ---------------- */
 
@@ -174,6 +209,23 @@ export default {
       ).bind(row.ip, row.country, row.game, row.version, row.level, row.score, row.bank, row.mode, row.won, row.arrows, row.seconds, row.bumps, row.radio, row.contact).run();
 
       return json({ ok: true }, 200, headers);
+    }
+
+    if (request.method === "POST" && url.pathname === "/query") {
+      if (!(await authorized(request, env))) return json({ error: "wrong or missing admin key" }, 401, headers);
+      let b;
+      try { b = JSON.parse(await request.text()); } catch { return json({ error: "bad json" }, 400, headers); }
+      const sql = String((b && b.sql) || "").trim();
+      if (!sql || sql.length > MAX_SQL) return json({ error: "sql missing or too long" }, 400, headers);
+      const problem = readOnlyProblem(sql);
+      if (problem) return json({ error: problem }, 400, headers);
+      try {
+        const started = Date.now();
+        const [columns, ...rows] = await env.DB.prepare(sql).raw({ columnNames: true });
+        return json({ columns: columns || [], rows: rows.slice(0, MAX_ROWS), total: rows.length, truncated: rows.length > MAX_ROWS, ms: Date.now() - started }, 200, headers);
+      } catch (e) {
+        return json({ error: String(e.message || e).replace(/^D1_ERROR:\s*/, "") }, 400, headers);
+      }
     }
 
     if (request.method === "GET" && url.pathname === "/stats") {

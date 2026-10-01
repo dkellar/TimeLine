@@ -103,6 +103,27 @@ When the promotion ends, keep that promise:
 
 and set `contestOpen: false` in the game's `CONFIG` so the field disappears.
 
+## Stats page (GameStats)
+
+`../../GameStats/index.html` is a static page (host it on GitHub Pages like the games) that
+reads this table through `POST /query`: last N plays, high scores, aggregates, and your own
+SQL. `/query` only runs a single SELECT / WITH statement and needs an admin key, so the page
+can be public — without the key it shows nothing.
+
+One-time setup:
+
+1. Pick a long random key, e.g. `openssl rand -hex 24`, and store it as a Worker secret:
+
+       npx wrangler secret put ADMIN_KEY
+
+2. `npx wrangler deploy` (picks up the new `/query` route).
+3. The page must be served from an origin in `ALLOWED_ORIGINS` (`https://dkellar.github.io`
+   already is). Open it, expand **Connection**, paste the key, press Connect. The key stays in
+   that browser only.
+
+To change the key, run step 1 again; every browser will need the new one. Changes to data
+(like erasing `contact`) still go through `wrangler d1 execute` — the page can't write.
+
 ## If you created the table before the `bank` column existed
 
     npx wrangler d1 execute runway-arrows --remote --command "ALTER TABLE plays ADD COLUMN bank INTEGER"

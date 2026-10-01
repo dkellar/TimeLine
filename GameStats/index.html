@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>CHIR Game Stats</title>
+<style>
+  :root {
+    --bg: #F7F1E6; --panel: #FFFDF8; --text: #201B16; --muted: #6B5F52; --line: #E3D6C2;
+    --accent: #B8382A; --accent-ink: #fff; --good: #2F9E44; --bad: #B8382A; --bar: #E7CBA4;
+    --code-bg: #F0E4D0; --shadow: 0 1px 2px rgba(32,27,22,.08);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17130F; --panel: #201B16; --text: #F0E4D0; --muted: #A89A88; --line: #3A322A;
+      --accent: #F08A8A; --accent-ink: #201B16; --good: #6CCB7F; --bad: #F08A8A; --bar: #5A4632;
+      --code-bg: #2A231C; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 var(--body); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; }
+  h1 span { color: var(--accent); }
+  .status { font-size: 13px; color: var(--muted); margin-left: auto; }
+  .status.err { color: var(--bad); }
+  button, select, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; }
+  button:hover { border-color: var(--muted); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.link { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; }
+  select, input[type=text], input[type=password], input[type=number] {
+    border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 8px; min-width: 0;
+  }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+  details.settings summary { cursor: pointer; font-weight: 600; }
+  .settings .grid { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin-top: 10px; }
+  .settings label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  .settings .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 14px 0; }
+  .toolbar label { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 6px; overflow-x: auto; }
+  .tabs button { border: 0; border-bottom: 3px solid transparent; border-radius: 0; background: none; padding: 8px 14px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+  .tabs button[aria-selected=true] { color: var(--text); border-bottom-color: var(--accent); }
+  section[hidden] { display: none; }
+  section { padding-top: 14px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .row .grow { flex: 1; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .card .v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .presets button[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .tablebox { overflow: auto; max-height: 70vh; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; background: var(--code-bg); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); cursor: pointer; user-select: none; }
+  th.num, td.num { text-align: right; }
+  th .arrow { opacity: .7; }
+  tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: color-mix(in srgb, var(--bar) 25%, transparent); }
+  td.null { color: var(--muted); font-style: italic; }
+  td .won { color: var(--good); font-weight: 600; } td .lost { color: var(--bad); }
+  td.barcell { min-width: 140px; }
+  .bar { height: 10px; background: var(--accent); border-radius: 3px; opacity: .75; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .error { color: var(--bad); white-space: pre-wrap; padding: 12px; font-family: var(--mono); font-size: 13px; }
+  textarea { width: 100%; min-height: 150px; font-family: var(--mono); font-size: 14px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; resize: vertical; }
+  .qgrid { display: grid; grid-template-columns: 1fr 300px; gap: 14px; }
+  .qgrid > * { min-width: 0; }
+  .side h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 6px; }
+  .side ul { list-style: none; margin: 0 0 14px; padding: 0; font-size: 13px; }
+  .side li { padding: 3px 0; border-bottom: 1px dashed var(--line); display: flex; gap: 6px; align-items: baseline; }
+  .side li code { font-family: var(--mono); font-weight: 600; }
+  .side li .d { color: var(--muted); }
+  .side li button.link { text-align: left; }
+  .side li .x { margin-left: auto; color: var(--muted); text-decoration: none; }
+  .sqlpeek { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: pre-wrap; background: var(--code-bg); border-radius: 8px; padding: 8px 10px; margin-top: 10px; }
+  @media (max-width: 760px) {
+    .settings .grid, .qgrid { grid-template-columns: 1fr; }
+    .status { margin-left: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span>CHIR</span> Game Stats</h1>
+    <div class="meta">Runway Arrows · Dial-A-Hit</div>
+    <div class="status" id="status">Not connected</div>
+  </header>
+
+  <details class="settings panel" id="settingsBox">
+    <summary>Connection</summary>
+    <div class="grid">
+      <label>Tracker URL <input type="text" id="cfgUrl" spellcheck="false"></label>
+      <label>Admin key <input type="password" id="cfgKey" autocomplete="off" spellcheck="false"></label>
+      <button class="primary" id="cfgSave">Connect</button>
+    </div>
+    <p class="note">
+      The key is the <code>ADMIN_KEY</code> secret set on the Worker. It's kept only in this browser's storage —
+      never in this page's source — so the page is safe to host publicly.
+      <label style="display:inline-flex;flex-direction:row;gap:6px;align-items:center"><input type="checkbox" id="cfgRemember" checked> Remember on this device</label>
+      · <button class="link" id="cfgForget">Forget key</button>
+    </p>
+  </details>
+
+  <div class="toolbar">
+    <label>Game
+      <select id="fGame">
+        <option value="">Both games</option>
+        <option value="arrows">Runway Arrows</option>
+        <option value="dial">Dial-A-Hit</option>
+      </select>
+    </label>
+    <label>Period
+      <select id="fPeriod">
+        <option value="">All time</option>
+        <option value="today">Today</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="fPrivate"> Show IP &amp; contact</label>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="recent" aria-selected="true">Recent</button>
+    <button role="tab" data-tab="scores">High scores</button>
+    <button role="tab" data-tab="agg">Aggregates</button>
+    <button role="tab" data-tab="query">Custom query</button>
+  </nav>
+
+  <section id="tab-recent">
+    <div class="cards" id="overview"></div>
+    <div class="row">
+      <label class="meta">Show last <input type="number" id="recentN" value="20" min="1" max="1000" style="width:80px"> plays</label>
+      <span class="meta grow" id="recentMeta"></span>
+    </div>
+    <div class="tablebox" id="recentOut"></div>
+  </section>
+
+  <section id="tab-scores" hidden>
+    <div class="presets" id="scorePresets"></div>
+    <div class="row"><span class="meta grow" id="scoreMeta"></span><button class="link" id="scoreEdit">Open this in Custom query</button></div>
+    <div class="tablebox" id="scoreOut"></div>
+  </section>
+
+  <section id="tab-agg" hidden>
+    <div class="presets" id="aggPresets"></div>
+    <div class="row"><span class="meta grow" id="aggMeta"></span><button class="link" id="aggEdit">Open this in Custom query</button></div>
+    <div class="tablebox" id="aggOut"></div>
+  </section>
+
+  <section id="tab-query" hidden>
+    <div class="qgrid">
+      <div>
+        <textarea id="sql" spellcheck="false" placeholder="SELECT * FROM plays ORDER BY id DESC LIMIT 20"></textarea>
+        <div class="row" style="margin-top:8px">
+          <button class="primary" id="run">Run ⌘↵</button>
+          <button id="save">Save query…</button>
+          <button id="csv" disabled>Download CSV</button>
+          <span class="meta grow" id="queryMeta"></span>
+        </div>
+        <div class="tablebox" id="queryOut"><div class="empty">Write a SELECT and press Run. Only read-only queries are allowed.</div></div>
+      </div>
+      <aside class="side">
+        <h3>Saved queries</h3>
+        <ul id="savedList"></ul>
+        <h3>Examples</h3>
+        <ul id="exampleList"></ul>
+        <h3>Table <code>plays</code></h3>
+        <ul id="schemaList"></ul>
+      </aside>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+const DEFAULT_URL = "https://runway-tracker.dave-kellar-ca.workers.dev";
+const LS = { url: "gs.url", key: "gs.key", saved: "gs.saved", tab: "gs.tab", game: "gs.game", period: "gs.period" };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let cfg = { url: store.get(LS.url) || DEFAULT_URL, key: store.get(LS.key) || sessionStorage.getItem(LS.key) || "" };
+
+/* ---------- Talking to the Worker ---------- */
+
+async function query(sql) {
+  if (!cfg.key) { $("settingsBox").open = true; throw new Error("Enter the admin key under Connection first."); }
+  const res = await fetch(cfg.url.replace(/\/+$/, "") + "/query", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + cfg.key },
+    body: JSON.stringify({ sql }),
+  });
+  let data;
+  try { data = await res.json(); } catch { throw new Error("The tracker replied with HTTP " + res.status + " and no JSON. Has the Worker been redeployed with /query?"); }
+  if (!res.ok || data.error) {
+    if (res.status === 401) { setStatus("Admin key rejected", true); $("settingsBox").open = true; }
+    throw new Error(data.error || "HTTP " + res.status);
+  }
+  setStatus("Connected · " + new Date().toLocaleTimeString());
+  return data;
+}
+
+function setStatus(text, err) { const s = $("status"); s.textContent = text; s.classList.toggle("err", !!err); }
+
+/* ---------- Filters → SQL ---------- */
+
+// Browser's UTC offset as a SQLite modifier, so days and hours read in local time.
+const tzMod = () => `'${-new Date().getTimezoneOffset()} minutes'`;
+const localTs = (col = "ts") => `datetime(${col}, ${tzMod()})`;
+
+function cutoff() {
+  const p = $("fPeriod").value;
+  if (!p) return null;
+  const d = new Date();
+  if (p === "today") d.setHours(0, 0, 0, 0);
+  else d.setTime(d.getTime() - Number(p) * 86400000);
+  return d.toISOString();
+}
+
+// WHERE clause from the toolbar filters plus any extra conditions.
+function where(...extra) {
+  const c = [];
+  const g = $("fGame").value;
+  if (g) c.push(`game = '${g}'`);
+  const t = cutoff();
+  if (t) c.push(`ts >= '${t}'`);
+  c.push(...extra.filter(Boolean));
+  return c.length ? "WHERE " + c.join(" AND ") : "";
+}
+const filterLabel = () => {
+  const g = $("fGame").selectedOptions[0].text, p = $("fPeriod").selectedOptions[0].text;
+  return g + " · " + p.toLowerCase();
+};
+
+/* ---------- Table rendering ---------- */
+
+const SECRET_COLS = new Set(["ip", "contact"]);
+const lastResult = {};
+
+function render(target, data, opts = {}) {
+  const box = $(target);
+  lastResult[target] = data;
+  if (!data.columns.length || !data.rows.length) { box.innerHTML = `<div class="empty">No rows${$("fGame").value || $("fPeriod").value ? " for these filters" : ""}.</div>`; return; }
+  const hide = opts.hidePrivate && !$("fPrivate").checked;
+  const cols = data.columns.map((name, i) => ({ name, i })).filter((c) => !(hide && SECRET_COLS.has(c.name)));
+  const isNum = (i) => data.rows.every((r) => r[i] == null || typeof r[i] === "number");
+  cols.forEach((c) => (c.num = isNum(c.i)));
+  const barCol = opts.bar != null ? data.columns.indexOf(opts.bar) : -1;
+  const barMax = barCol >= 0 ? Math.max(...data.rows.map((r) => Math.abs(r[barCol]) || 0), 1) : 0;
+  const sort = box._sort && box._sort.cols === data.columns.join() ? box._sort : null;
+  let rows = data.rows;
+  if (sort) {
+    rows = rows.slice().sort((a, b) => {
+      const x = a[sort.i], y = b[sort.i];
+      if (x == null) return 1; if (y == null) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * sort.dir;
+    });
+  }
+  const head = cols.map((c) => `<th class="${c.num ? "num" : ""}" data-i="${c.i}">${esc(c.name)}${sort && sort.i === c.i ? ` <span class="arrow">${sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")
+    + (barCol >= 0 ? "<th></th>" : "");
+  const body = rows.map((r) => "<tr>" + cols.map((c) => cell(c, r[c.i])).join("")
+    + (barCol >= 0 ? `<td class="barcell"><div class="bar" style="width:${(Math.abs(r[barCol]) || 0) / barMax * 100}%"></div></td>` : "") + "</tr>").join("");
+  box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  box.querySelectorAll("th[data-i]").forEach((th) => th.addEventListener("click", () => {
+    const i = Number(th.dataset.i);
+    const dir = sort && sort.i === i ? -sort.dir : (cols.find((c) => c.i === i).num ? -1 : 1);
+    box._sort = { cols: data.columns.join(), i, dir };
+    render(target, data, opts);
+  }));
+}
+
+function cell(c, v) {
+  if (v == null) return `<td class="null">—</td>`;
+  if (typeof v === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(v)) return `<td title="${esc(v)} UTC">${esc(fmtTime(v))}</td>`;
+  if ((c.name === "won" || c.name === "radio") && (v === 0 || v === 1))
+    return `<td>${c.name === "won" ? (v ? '<span class="won">won</span>' : '<span class="lost">lost</span>') : (v ? "on" : "off")}</td>`;
+  if (c.num) return `<td class="num">${typeof v === "number" && !Number.isInteger(v) ? v.toFixed(1) : Number(v).toLocaleString()}</td>`;
+  return `<td>${esc(v)}</td>`;
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function showError(target, e) { $(target).innerHTML = `<div class="error">${esc(e.message || e)}</div>`; }
+
+const pending = {};   // latest request per table, so a slow earlier reply can't overwrite a newer one
+async function runInto(target, sql, opts, metaId) {
+  const seq = (pending[target] = (pending[target] || 0) + 1);
+  $(target).innerHTML = `<div class="empty">Loading…</div>`;
+  try {
+    const data = await query(sql);
+    if (seq !== pending[target]) return null;
+    render(target, data, opts);
+    if (metaId) $(metaId).textContent = `${data.total.toLocaleString()} row${data.total === 1 ? "" : "s"}${data.truncated ? " (first 1,000 shown)" : ""} · ${filterLabel()} · ${data.ms} ms`;
+    return data;
+  } catch (e) {
+    if (seq !== pending[target]) return null;
+    showError(target, e); if (metaId) $(metaId).textContent = "";
+  }
+}
+
+/* ---------- Recent ---------- */
+
+async function loadRecent() {
+  const n = Math.max(1, Math.min(1000, parseInt($("recentN").value, 10) || 20));
+  runInto("recentOut",
+    `SELECT id, ts, game, version, level, score, bank, mode, won, arrows, seconds, bumps, radio, country, ip, contact\nFROM plays ${where()}\nORDER BY id DESC LIMIT ${n}`,
+    { hidePrivate: true }, "recentMeta");
+  try {
+    const d = await query(`SELECT COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins,
+      ROUND(100.0 * SUM(won) / MAX(COUNT(*), 1)) AS win_pct, MAX(score) AS best_score, ROUND(AVG(seconds)) AS avg_secs,
+      ROUND(100.0 * SUM(radio) / MAX(COUNT(*), 1)) AS radio_pct, MAX(ts) AS last_play FROM plays ${where()}`);
+    const r = Object.fromEntries(d.columns.map((c, i) => [c, d.rows[0][i]]));
+    const n = (v) => v == null ? "—" : Number(v).toLocaleString();
+    $("overview").innerHTML = [
+      ["Plays", n(r.plays)], ["Players (IPs)", n(r.players)], ["Win rate", r.plays ? r.win_pct + "%" : "—"],
+      ["Best score", n(r.best_score)], ["Avg seconds", n(r.avg_secs)], ["Radio on", r.plays ? r.radio_pct + "%" : "—"],
+      ["Last play", r.last_play ? fmtTime(r.last_play) : "—"],
+    ].map(([k, v]) => `<div class="card"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>`).join("");
+  } catch { $("overview").innerHTML = ""; }
+}
+
+/* ---------- Presets (high scores + aggregates) ---------- */
+
+const SCORE_PRESETS = [
+  { label: "Best single level", note: "Highest points banked on one level / puzzle (wins only).",
+    sql: () => `SELECT ts, game, score, level, mode, seconds, version, country, ip, contact\nFROM plays ${where("won = 1")}\nORDER BY score DESC, seconds ASC LIMIT 25` },
+  { label: "Best bank / round per player", note: "Each player's (IP's) highest bank (Arrows) or round score (Dial-A-Hit).",
+    sql: () => `SELECT game, ip, MAX(bank) AS best_bank, MAX(level) AS furthest_level, COUNT(*) AS plays, MAX(country) AS country, MAX(contact) AS contact, MAX(ts) AS last_play\nFROM plays ${where("bank IS NOT NULL")}\nGROUP BY game, ip\nORDER BY best_bank DESC LIMIT 25` },
+  { label: "Furthest level", note: "Highest level reached (Arrows) / track number (Dial-A-Hit), per player.",
+    sql: () => `SELECT game, ip, MAX(level) AS top_level, SUM(won) AS wins, COUNT(*) AS plays, MAX(country) AS country, MAX(ts) AS last_play\nFROM plays ${where()}\nGROUP BY game, ip\nORDER BY top_level DESC, wins DESC LIMIT 25` },
+  { label: "Fastest wins", note: "Quickest solved levels / puzzles.",
+    sql: () => `SELECT ts, game, seconds, level, score, arrows, bumps, mode, version, ip\nFROM plays ${where("won = 1", "seconds IS NOT NULL", "seconds > 0")}\nORDER BY seconds ASC, score DESC LIMIT 25` },
+  { label: "Contest leaderboard", note: "Dial-A-Hit contestants by best round score (rows with a contact only).",
+    sql: () => `SELECT contact, MAX(bank) AS best_round, COUNT(*) AS puzzles, SUM(won) AS solved, MIN(ts) AS first_play, MAX(ts) AS last_play\nFROM plays ${where("game = 'dial'", "contact IS NOT NULL")}\nGROUP BY contact\nORDER BY best_round DESC LIMIT 50`, privateOk: true },
+];
+
+const AGG_PRESETS = [
+  { label: "By game", bar: "plays",
+    sql: () => `SELECT game, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins,\n  ROUND(100.0 * SUM(won) / COUNT(*), 1) AS win_pct, ROUND(AVG(score), 1) AS avg_score, MAX(score) AS best_score\nFROM plays ${where()}\nGROUP BY game ORDER BY plays DESC` },
+  { label: "Plays per day", bar: "plays", note: "Days are in your local time.",
+    sql: () => `SELECT date(ts, ${tzMod()}) AS day, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins\nFROM plays ${where()}\nGROUP BY day ORDER BY day DESC LIMIT 90` },
+  { label: "Hour of day", bar: "plays", note: "Local time.",
+    sql: () => `SELECT strftime('%H', ts, ${tzMod()}) AS hour, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players\nFROM plays ${where()}\nGROUP BY hour ORDER BY hour` },
+  { label: "Day of week", bar: "plays", note: "Local time.",
+    sql: () => `SELECT CASE strftime('%w', ts, ${tzMod()}) WHEN '0' THEN 'Sun' WHEN '1' THEN 'Mon' WHEN '2' THEN 'Tue' WHEN '3' THEN 'Wed' WHEN '4' THEN 'Thu' WHEN '5' THEN 'Fri' ELSE 'Sat' END AS weekday,\n  COUNT(*) AS plays, COUNT(DISTINCT ip) AS players\nFROM plays ${where()}\nGROUP BY strftime('%w', ts, ${tzMod()}) ORDER BY strftime('%w', ts, ${tzMod()})` },
+  { label: "Win rate by level", bar: "win_pct", note: "Arrows: level number. Dial-A-Hit: track number in the round.",
+    sql: () => `SELECT game, level, COUNT(*) AS plays, SUM(won) AS wins, ROUND(100.0 * SUM(won) / COUNT(*), 1) AS win_pct,\n  ROUND(AVG(seconds), 1) AS avg_secs, ROUND(AVG(bumps), 1) AS avg_bumps\nFROM plays ${where()}\nGROUP BY game, level ORDER BY game, level` },
+  { label: "By country", bar: "plays",
+    sql: () => `SELECT COALESCE(country, '??') AS country, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, SUM(won) AS wins\nFROM plays ${where()}\nGROUP BY country ORDER BY plays DESC` },
+  { label: "By version", bar: "plays",
+    sql: () => `SELECT game, version, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players, MIN(ts) AS first_seen, MAX(ts) AS last_seen\nFROM plays ${where()}\nGROUP BY game, version ORDER BY last_seen DESC` },
+  { label: "By mode", bar: "plays",
+    sql: () => `SELECT game, mode, COUNT(*) AS plays, ROUND(100.0 * SUM(won) / COUNT(*), 1) AS win_pct, ROUND(AVG(score), 1) AS avg_score, ROUND(AVG(seconds), 1) AS avg_secs\nFROM plays ${where()}\nGROUP BY game, mode ORDER BY plays DESC` },
+  { label: "CHIR radio on vs off", bar: "plays",
+    sql: () => `SELECT CASE radio WHEN 1 THEN 'radio on' ELSE 'radio off' END AS radio, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players,\n  ROUND(100.0 * SUM(won) / COUNT(*), 1) AS win_pct, ROUND(AVG(score), 1) AS avg_score\nFROM plays ${where()}\nGROUP BY radio ORDER BY plays DESC` },
+  { label: "Most active players", bar: "plays",
+    sql: () => `SELECT ip, MAX(country) AS country, COUNT(*) AS plays, SUM(won) AS wins, COUNT(DISTINCT date(ts)) AS days_played,\n  MIN(ts) AS first_play, MAX(ts) AS last_play\nFROM plays ${where()}\nGROUP BY ip ORDER BY plays DESC LIMIT 50` },
+  { label: "Returning players", note: "How many players came back on more than one day.",
+    sql: () => `SELECT days_played, COUNT(*) AS players\nFROM (SELECT ip, COUNT(DISTINCT date(ts, ${tzMod()})) AS days_played FROM plays ${where()} GROUP BY ip)\nGROUP BY days_played ORDER BY days_played`, bar: "players" },
+];
+
+function presetSection(kind, presets, outId, metaId, editId) {
+  let current = Number(store.get("gs.preset." + kind)) || 0;
+  if (!presets[current]) current = 0;
+  const wrap = $(kind + "Presets");
+  wrap.innerHTML = presets.map((p, i) => `<button data-i="${i}" aria-pressed="${i === current}">${esc(p.label)}</button>`).join("");
+  wrap.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]");
+    if (!b) return;
+    current = Number(b.dataset.i);
+    store.set("gs.preset." + kind, current);
+    wrap.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    run();
+  });
+  $(editId).addEventListener("click", () => { $("sql").value = presets[current].sql(); selectTab("query"); });
+  async function run() {
+    const p = presets[current];
+    $(outId)._sort = null;
+    const data = await runInto(outId, p.sql(), { bar: p.bar, hidePrivate: !p.privateOk }, metaId);
+    if (data && p.note) $(metaId).textContent = p.note + " · " + $(metaId).textContent;
+  }
+  return run;
+}
+const loadScores = presetSection("score", SCORE_PRESETS, "scoreOut", "scoreMeta", "scoreEdit");
+const loadAgg = presetSection("agg", AGG_PRESETS, "aggOut", "aggMeta", "aggEdit");
+
+/* ---------- Custom query ---------- */
+
+const SCHEMA = [
+  ["id", "row number, newest is highest"], ["ts", "UTC time, e.g. 2026-09-20T18:04:11.230Z"],
+  ["ip", "player IP (personal data)"], ["country", "two-letter code"], ["game", "'arrows' or 'dial'"],
+  ["version", "game build, e.g. 'v36'"], ["level", "Arrows level · Dial track # (1–5)"],
+  ["score", "points for that level / puzzle (0 = loss)"], ["bank", "Arrows money after level · Dial round score so far"],
+  ["mode", "'classic'/'risk' · 'timed'/'relaxed'"], ["won", "1 won · 0 lost"],
+  ["arrows", "arrows in puzzle · letters in answer"], ["seconds", "solve time / seconds used"],
+  ["bumps", "bumps · guesses made"], ["radio", "1 if CHIR was playing"], ["contact", "Dial contest entry (personal data)"],
+];
+const EXAMPLES = [
+  ["Last 20 plays", "SELECT * FROM plays ORDER BY id DESC LIMIT 20"],
+  ["Today's plays (UTC)", "SELECT * FROM plays WHERE ts >= strftime('%Y-%m-%dT00:00:00Z', 'now') ORDER BY id DESC"],
+  ["Avg score per level, Arrows", "SELECT level, COUNT(*) AS plays, ROUND(AVG(score),1) AS avg_score\nFROM plays WHERE game = 'arrows' AND won = 1\nGROUP BY level ORDER BY level"],
+  ["Dial-A-Hit misses by guesses", "SELECT bumps AS guesses, COUNT(*) AS puzzles, SUM(won) AS solved\nFROM plays WHERE game = 'dial'\nGROUP BY bumps ORDER BY bumps"],
+  ["One player's history", "SELECT ts, game, level, score, bank, won FROM plays\nWHERE ip = 'PASTE-IP-HERE' ORDER BY id"],
+  ["Plays per week", "SELECT strftime('%Y-W%W', ts) AS week, COUNT(*) AS plays, COUNT(DISTINCT ip) AS players\nFROM plays GROUP BY week ORDER BY week DESC"],
+];
+
+const savedQueries = () => { try { return JSON.parse(store.get(LS.saved) || "[]"); } catch { return []; } };
+function drawSaved() {
+  const list = savedQueries();
+  $("savedList").innerHTML = list.length
+    ? list.map((q, i) => `<li><button class="link" data-load="${i}">${esc(q.name)}</button><button class="link x" data-del="${i}" title="Delete">✕</button></li>`).join("")
+    : `<li class="d">None yet — write a query and press “Save query…”.</li>`;
+}
+$("savedList").addEventListener("click", (e) => {
+  const list = savedQueries();
+  const l = e.target.closest("[data-load]"), d = e.target.closest("[data-del]");
+  if (l) { $("sql").value = list[l.dataset.load].sql; runCustom(); }
+  if (d && confirm(`Delete saved query “${list[d.dataset.del].name}”?`)) { list.splice(d.dataset.del, 1); store.set(LS.saved, JSON.stringify(list)); drawSaved(); }
+});
+$("save").addEventListener("click", () => {
+  const sql = $("sql").value.trim();
+  if (!sql) return;
+  const name = prompt("Name for this query:");
+  if (!name) return;
+  const list = savedQueries().filter((q) => q.name !== name);
+  list.push({ name, sql });
+  store.set(LS.saved, JSON.stringify(list));
+  drawSaved();
+});
+$("exampleList").innerHTML = EXAMPLES.map(([n], i) => `<li><button class="link" data-ex="${i}">${esc(n)}</button></li>`).join("");
+$("exampleList").addEventListener("click", (e) => { const b = e.target.closest("[data-ex]"); if (b) { $("sql").value = EXAMPLES[b.dataset.ex][1]; $("sql").focus(); } });
+$("schemaList").innerHTML = SCHEMA.map(([c, d]) => `<li><code>${c}</code><span class="d">${esc(d)}</span></li>`).join("");
+
+async function runCustom() {
+  const sql = $("sql").value.trim();
+  if (!sql) return;
+  $("queryOut")._sort = null;
+  $("csv").disabled = true;
+  const data = await runInto("queryOut", sql, {}, null);
+  if (data) {
+    $("queryMeta").textContent = `${data.total.toLocaleString()} row${data.total === 1 ? "" : "s"}${data.truncated ? " (first 1,000 shown)" : ""} · ${data.ms} ms`;
+    $("csv").disabled = !data.rows.length;
+  } else $("queryMeta").textContent = "";
+}
+$("run").addEventListener("click", runCustom);
+$("sql").addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); runCustom(); } });
+$("csv").addEventListener("click", () => {
+  const d = lastResult.queryOut;
+  if (!d) return;
+  const q = (v) => v == null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+  const text = [d.columns, ...d.rows].map((r) => r.map(q).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" }));
+  a.download = "chir-plays-" + new Date().toISOString().slice(0, 10) + ".csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+
+/* ---------- Tabs, filters, connection ---------- */
+
+const loaders = { recent: loadRecent, scores: loadScores, agg: loadAgg, query: () => {} };
+let tab = store.get(LS.tab) || "recent";
+if (!loaders[tab]) tab = "recent";
+function selectTab(name) {
+  tab = name;
+  store.set(LS.tab, name);
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
+  document.querySelectorAll("main section, .wrap > section").forEach((s) => (s.hidden = s.id !== "tab-" + name));
+}
+document.querySelector(".tabs").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-tab]");
+  if (b) { selectTab(b.dataset.tab); if (cfg.key) loaders[tab](); }
+});
+const reload = () => { if (cfg.key) loaders[tab](); };
+$("fGame").value = store.get(LS.game) || "";
+$("fPeriod").value = store.get(LS.period) || "";
+$("fGame").addEventListener("change", () => { store.set(LS.game, $("fGame").value); reload(); });
+$("fPeriod").addEventListener("change", () => { store.set(LS.period, $("fPeriod").value); reload(); });
+$("fPrivate").addEventListener("change", reload);
+$("refresh").addEventListener("click", reload);
+$("recentN").addEventListener("change", reload);
+
+$("cfgUrl").value = cfg.url;
+$("cfgKey").value = cfg.key;
+$("cfgSave").addEventListener("click", () => {
+  cfg = { url: $("cfgUrl").value.trim() || DEFAULT_URL, key: $("cfgKey").value.trim() };
+  store.set(LS.url, cfg.url);
+  if ($("cfgRemember").checked) { store.set(LS.key, cfg.key); try { sessionStorage.removeItem(LS.key); } catch {} }
+  else { store.set(LS.key, null); try { sessionStorage.setItem(LS.key, cfg.key); } catch {} }
+  $("settingsBox").open = false;
+  reload();
+});
+$("cfgForget").addEventListener("click", () => {
+  store.set(LS.key, null); try { sessionStorage.removeItem(LS.key); } catch {}
+  cfg.key = ""; $("cfgKey").value = ""; setStatus("Not connected");
+});
+
+drawSaved();
+selectTab(tab);
+if (cfg.key) reload(); else { $("settingsBox").open = true; $("recentOut").innerHTML = `<div class="empty">Enter the admin key under Connection to load stats.</div>`; }
+</script>
+</body>
+</html>
